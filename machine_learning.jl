@@ -213,8 +213,42 @@ scatterlines!(epoch_range[1:20], Float32.(loss_valid_l)[1:20]; label="validation
 axislegend()
 f
 
+# exercise 6: repeat same but with dropout
 
-# EXERCISE 6: CLASSIFICATION EXAMPLE
+mlp_with_dropout = SimpleChain(
+  static(1),
+  TurboDense{true}(tanh, 128),
+  SimpleChains.Dropout(0.2),
+  TurboDense{true}(tanh, 128),
+  SimpleChains.Dropout(0.2),
+  TurboDense{true}(identity, 1)
+)
+
+p = SimpleChains.init_params(mlp_with_dropout)
+G = SimpleChains.alloc_threaded_grad(mlp_with_dropout)
+
+loss_train = SimpleChains.add_loss(mlp_with_dropout, SquaredLoss(ys_train))
+loss_valid = SimpleChains.add_loss(mlp_with_dropout, SquaredLoss(ys_valid))
+
+loss_train_l, loss_valid_l = [], []
+epoch_range = 1:200
+for epoch in epoch_range
+  SimpleChains.train_unbatched!(G, p, loss_train, xs_train, SimpleChains.ADAM(), 100);
+  push!(loss_train_l, loss_train(xs_train, p))
+  push!(loss_valid_l, loss_valid(xs_valid, p))
+end
+
+f, ax = scatterlines(
+  epoch_range, Float32.(loss_train_l); 
+  label="training",
+  axis = (; xlabel = "~Epochs", ylabel="Loss")
+)
+scatterlines!(epoch_range, Float32.(loss_valid_l); label="validation")
+axislegend()
+f
+
+
+# EXERCISE 7: CLASSIFICATION EXAMPLE
 
 # can not have a simple classification example because SimpleChains doesn't have BCE yet
 
