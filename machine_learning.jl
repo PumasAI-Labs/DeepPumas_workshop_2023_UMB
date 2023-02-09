@@ -8,23 +8,22 @@ using Printf
 # regression example
 
 """
-    sample_regression(num_samples, slope, intercept; stdev=0.25, seed=nothing)
+    sample_regression(num_samples; true_function=x->x, stdev=0.25, seed=nothing)
 
 Sample `num_samples` pairs (xᵢ, yᵢ), where ``xᵢ ~ U(-1, 1)``, ``ϵᵢ ~ N(0, stdev)``, and 
-``yᵢ = slope * xᵢ + intercept + ϵᵢ``.
+``yᵢ = true_function(xᵢ) + ϵᵢ``.
 
 A random `seed` can be optionally passed. Otherwise, none is set.
 
 # Examples
 ```jldoctest
-julia> sample_regression(2, 1, 0; seed=1)
+julia> sample_regression(2; seed=1)
 ([-0.8532672910614143, -0.3015170208856277], [-1.0549803725630928, 0.31273081261019553])
 ```
 """
 function sample_regression(
-    num_samples::Integer,
-    slope::Real,
-    intercept::Real;
+    num_samples::Integer;
+    true_function::Function=x->x,
     stdev::Real=0.25, 
     seed=nothing
 )
@@ -36,15 +35,12 @@ function sample_regression(
     x = rand(Uniform(-1, 1), num_samples)
     ϵ = rand(Normal(0, stdev), num_samples)
 
-    y = slope .* x .+ intercept .+ ϵ
-
-    return x, y
+    return x, true_function.(x) .+ ϵ
 end
 
-slope, intercept = 1., 0.
-x, y = sample_regression(50, slope, intercept; seed=1)
+x, y = sample_regression(50; seed=1)
 f = scatter(x, y; color=:gray, label="data");
-ablines!(intercept, slope; label="intercept = $intercept, slope = $slope (true)")
+ablines!(0, 1; label="intercept = 0, slope = 1 (true)")
 f
 
 xs = reshape(x, 1, :)
