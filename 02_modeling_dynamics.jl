@@ -9,37 +9,37 @@ Example derived from https://tutorials.pumas.ai/html/PKPDDataAnalysisBook/PK/pk0
 
 Background
 
-  - Structural model        - One compartment linear elimination
-  - Route of administration - IV bolus
-  - Dosage Regimen          - 10 mg IV
-  - Number of Subjects      - 4
+        - Structural model        - One compartment linear elimination
+        - Route of administration - IV bolus
+        - Dosage Regimen          - 10 mg IV
+        - Number of Subjects      - 4
 """
 
 """ Data generating model. """
 data_model = @model begin
-	@param begin
-		tvCl ∈ RealDomain(lower = 0)  	# typical value of clearance (L/hr)
-		tvvc ∈ RealDomain(lower = 0)  	# typical value of central volume of distribution (L)
-		Ω ∈ PDiagDomain(2)  			# covariance matrix of random effects (between subject variability)
-		σ ∈ RealDomain(lower = 0)  		# residual error
-	end
-	@random begin
-		η ~ MvNormal(Ω)					# per subject random effects
-	end
-	@pre begin
-		Cl = tvCl * exp(η[1])			# per subject clearance (L/hr)
-		Vc = tvvc * exp(η[2])			# per subject volume of central compartment (L)
-	end
-	@dynamics begin
-		Central' = -(Cl / Vc) * Central	# ODE for concentration of drug in plasma (μg/L)
-	end
-	@derived begin
-		cp := @. 1000 * (Central / Vc)	# x1000 to match dose (mg) and concentration (μg/L)
-		dv ~ @. Normal(cp, σ)
-	end
+    @param begin
+        tvCl ∈ RealDomain(lower = 0)    # typical value of clearance (L/hr)
+        tvVc ∈ RealDomain(lower = 0)    # typical value of central volume of distribution (L)
+        Ω ∈ PDiagDomain(2)              # covariance matrix of random effects (between subject variability)
+        σ ∈ RealDomain(lower = 0)       # residual error
+    end
+    @random begin
+        η ~ MvNormal(Ω)                 # per subject random effects
+    end
+    @pre begin
+        Cl = tvCl * exp(η[1])           # per subject clearance (L/hr)
+        Vc = tvVc * exp(η[2])           # per subject volume of central compartment (L)
+    end
+    @dynamics begin
+        Central' = -(Cl / Vc) * Central # ODE for concentration of drug in plasma (μg/L)
+    end
+    @derived begin
+        cp := @. 1000 * (Central / Vc)  # x1000 to match dose (mg) and concentration (μg/L)
+        dv ~ @. Normal(cp, σ)
+    end
 end
 
-population = synthetic_data(data_model; rng=StableRNG(0))
+population = synthetic_data(data_model; rng = StableRNG(0))
 preds = predict(data_model, population[1:4], init_params(data_model))
 plotgrid(preds)
 
@@ -56,16 +56,16 @@ ude_model = @model begin
         η ~ MvNormal(Ω)
     end
     @pre begin
-        CL = tvCl * exp(η[1])
+        Cl = tvCl * exp(η[1])
         Vc = tvVc * exp(η[2])
         mlp_ = only ∘ mlp  # technical
     end
     @dynamics begin
-        Central' = mlp_(CL, Vc, Central)
+        Central' = mlp_(Cl, Vc, Central)
     end
     @derived begin
-		cp := @. 1000 * (Central / Vc)	# x1000 to match dose (mg) and concentration (μg/L)
-		dv ~ @. Normal(cp, σ)
+        cp := @. 1000 * (Central / Vc)# x1000 to match dose (mg) and concentration (μg/L)
+        dv ~ @. Normal(cp, σ)
     end
 end
 
@@ -78,7 +78,7 @@ fpm = fit(
     init_params(ude_model),
     MAP(FOCE());
     diffeq_options = (; alg = Rodas5P()),
-    optim_options = (; iterations=150)
+    optim_options = (; iterations = 150),
 )
 
 pred = predict(ude_model, population[1:4], coef(fpm); obstimes = 0:0.1:10);
@@ -94,11 +94,11 @@ map(fmlp, (1, 1, 0:0.1:10))
 
 xrange = 0:0.01:1
 res = map(xrange) do x
-    fmlp(1., 1., x)[1]
+    fmlp(1.0, 1.0, x)[1]
 end
 lines(xrange, res)
 
-- (coef(fpm).tvCl / coef(fpm).tvVc)
+-(coef(fpm).tvCl / coef(fpm).tvVc)
 
 # IT IS POSSIBLE TO resume training WITH PREVIOUS PARAMS
 fpm = fit(
@@ -107,12 +107,12 @@ fpm = fit(
     coef(fpm),
     MAP(FOCE());
     diffeq_options = (; alg = Rodas5P()),
-    optim_options = (; iterations=75)
+    optim_options = (; iterations = 75),
 )
 
 pred = predict(ude_model, population[1:4], coef(fpm); obstimes = 0:0.1:10);
 plotgrid(pred)
-plotgrid(pred; pred=false)
+plotgrid(pred; pred = false)
 
 
 # resample_params = true
@@ -150,8 +150,8 @@ ude_model_2 = @model begin
         Central' = mlp_(Central)  # dCentral/dt = mlp_(Central)
     end
     @derived begin
-		cp := @. 1000 * (Central / tvVc)	# x1000 to match dose (mg) and concentration (μg/L)
-		dv ~ @. Normal(cp, σ)
+        cp := @. 1000 * (Central / tvVc)# x1000 to match dose (mg) and concentration (μg/L)
+        dv ~ @. Normal(cp, σ)
     end
 end
 
@@ -161,7 +161,7 @@ fpm2 = fit(
     init_params(ude_model_2),
     MAP(NaivePooled());
     diffeq_options = (; alg = Rodas5P()),
-    optim_options = (; iterations=500)
+    optim_options = (; iterations = 500),
 )
 
 pred = predict(ude_model_2, population[1:4], coef(fpm2); obstimes = 0:0.1:10);
@@ -197,8 +197,8 @@ ude_model_3 = @model begin
         Central' = mlp_(Central)
     end
     @derived begin
-		cp := @. 1000 * (Central / Vc)	# x1000 to match dose (mg) and concentration (μg/L)
-		dv ~ @. Normal(cp, σ)
+        cp := @. 1000 * (Central / Vc)# x1000 to match dose (mg) and concentration (μg/L)
+        dv ~ @. Normal(cp, σ)
     end
 end
 
@@ -208,7 +208,7 @@ fpm3 = fit(
     init_params(ude_model_3),
     MAP(FOCE());
     diffeq_options = (; alg = Rodas5P()),
-    optim_options = (; iterations=150)
+    optim_options = (; iterations = 150),
 )
 
 pred = predict(ude_model_3, population[1:12], coef(fpm3); obstimes = 0:0.1:10);
@@ -227,16 +227,16 @@ ude_model_4 = @model begin
         η ~ MvNormal(Ω)
     end
     @pre begin
-        CL = tvCl * exp(η[1])
+        Cl = tvCl * exp(η[1])
         Vc = tvVc * exp(η[2])
         mlp_ = only ∘ mlp  # technical
     end
     @dynamics begin
-        Central' = mlp_(CL, Vc, Central)
+        Central' = mlp_(Cl, Vc, Central)
     end
     @derived begin
-		cp := @. 1000 * (Central / Vc)	# x1000 to match dose (mg) and concentration (μg/L)
-		dv ~ @. Normal(cp, σ)
+        cp := @. 1000 * (Central / Vc)# x1000 to match dose (mg) and concentration (μg/L)
+        dv ~ @. Normal(cp, σ)
     end
 end
 
@@ -261,8 +261,8 @@ ude_model_3 = @model begin
         Central' = mlp_(Central, η_nn)
     end
     @derived begin
-		cp := @. 1000 * (Central / Vc)	# x1000 to match dose (mg) and concentration (μg/L)
-		dv ~ @. Normal(cp, σ)
+        cp := @. 1000 * (Central / Vc)# x1000 to match dose (mg) and concentration (μg/L)
+        dv ~ @. Normal(cp, σ)
     end
 end
 
@@ -282,16 +282,16 @@ ude_model_4 = @model begin
         η ~ MvNormal(Ω)
     end
     @pre begin
-        CL = tvCl * exp(η[1])
+        Cl = tvCl * exp(η[1])
         Vc = tvVc * exp(η[2])
         mlp_ = only ∘ mlp  # technical
     end
     @dynamics begin
-        Central' = mlp_(CL, Central)
+        Central' = mlp_(Cl, Central)
     end
     @derived begin
-		cp := @. 1000 * (Central / Vc)	# x1000 to match dose (mg) and concentration (μg/L)
-		dv ~ @. Normal(cp, σ)
+        cp := @. 1000 * (Central / Vc)# x1000 to match dose (mg) and concentration (μg/L)
+        dv ~ @. Normal(cp, σ)
     end
 end
 
@@ -301,7 +301,7 @@ fpm4 = fit(
     init_params(ude_model_4),
     MAP(FOCE());
     diffeq_options = (; alg = Rodas5P()),
-    optim_options = (; iterations=50)
+    optim_options = (; iterations = 50),
 )
 
 pred = predict(ude_model_4, population[1:12], coef(fpm4); obstimes = 0:0.1:10);
@@ -329,7 +329,7 @@ ude_model_5 = @model begin
         Central' = mlp_(η_, Central)
     end
     @derived begin
-		cp := @. 1000 * (Central / Vc)	# x1000 to match dose (mg) and concentration (μg/L)
-		dv ~ @. Normal(cp, σ)
+        cp := @. 1000 * (Central / Vc)# x1000 to match dose (mg) and concentration (μg/L)
+        dv ~ @. Normal(cp, σ)
     end
 end
