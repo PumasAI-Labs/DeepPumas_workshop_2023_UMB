@@ -456,30 +456,3 @@ scatterlines!(1:iteration_blocks, Float32.(reg_loss_train_l); label = "training 
 scatterlines!(1:iteration_blocks, Float32.(reg_loss_valid_l); label = "validation (L2)")
 axislegend()
 f
-
-
-#
-# EXERCISE 6: CLASSIFICATION EXAMPLE
-#
-
-# can not have a simple classification example because SimpleChains doesn't have BCE yet
-
-y_binarized = UInt32.(Int.(y .>= mean(y)) .+ 1)
-
-f = scatter(x, y_binarized; color = :gray, label = "data");
-f
-
-# workaround with a 2-class CCE, but that's not intuitive...
-logregish = SimpleChain(static(1), TurboDense{true}(identity, 2))
-
-
-p = SimpleChains.init_params(logregish)
-G = SimpleChains.alloc_threaded_grad(logregish)
-
-loss = SimpleChains.add_loss(logregish, LogitCrossEntropyLoss(y_binarized))
-SimpleChains.train_unbatched!(G, p, loss, xs, SimpleChains.ADAM(), 10_000)
-
-preds = map(argmax, eachcol(logregish(xs, p)))
-scatter!(x, preds; label = "predictions")
-axislegend()
-f
