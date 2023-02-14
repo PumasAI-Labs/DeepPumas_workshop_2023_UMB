@@ -179,7 +179,7 @@ end
 # 2.3. Use a neural network (NN) to model `true_function`
 
 model_ex2 = @model begin
-    @param begin  
+    @param begin
         nn ∈ MLP(1, (8, tanh), (1, identity); bias = true)  # API supporting SimpleChains and Flux
         σ ∈ RealDomain(; lower = 0.0)
     end
@@ -230,8 +230,9 @@ solution_ex31 = begin
         init_params(model_ex2),
         MAP(NaivePooled());
         optim_options = (; iterations = 10),
-    );
-    ŷ_underfit = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
+    )
+    ŷ_underfit =
+        [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
 
     fpm = fit(
         model_ex2,
@@ -239,15 +240,16 @@ solution_ex31 = begin
         init_params(model_ex2),
         MAP(NaivePooled());
         optim_options = (; iterations = 10_000),  #TODO: NOT RUNNING THIS LONG ACTUALLY
-    );
-    ŷ_overfit = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
+    )
+    ŷ_overfit =
+        [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
 
     f = scatter(
         x,
         y;
         axis = (xlabel = "covariate x", ylabel = "observation y"),
         label = "data (each dot is a subject)",
-    );
+    )
     scatter!(x, ŷ_underfit, label = "prediction (10 iterations)")
     scatter!(x, ŷ_ex23, label = "prediction (100 iterations)")
     scatter!(x, ŷ_overfit, label = "prediction (10k iterations)")
@@ -266,8 +268,9 @@ solution_ex32 = begin
         init_params(model_ex1),
         MAP(NaivePooled());
         optim_options = (; iterations = 10),
-    );
-    ŷ_underfit = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
+    )
+    ŷ_underfit =
+        [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
 
     fpm = fit(
         model_ex1,
@@ -275,15 +278,16 @@ solution_ex32 = begin
         init_params(model_ex1),
         MAP(NaivePooled());
         optim_options = (; iterations = 10_000),  #TODO: NOT RUNNING THIS LONG ACTUALLY
-    );
-    ŷ_overfit = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
+    )
+    ŷ_overfit =
+        [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
 
     f = scatter(
         x,
         y;
         axis = (xlabel = "covariate x", ylabel = "observation y"),
         label = "data (each dot is a subject)",
-    );
+    )
     scatter!(x, ŷ_underfit, label = "prediction (10 iterations)")
     scatter!(x, ŷ_ex22, label = "prediction (100 iterations)")
     scatter!(x, ŷ_overfit, label = "prediction (10k iterations)")
@@ -296,7 +300,7 @@ end
 
 #TODO: This in SimpleChains would be much faster with larger net
 model_ex3 = @model begin
-    @param begin  
+    @param begin
         nn ∈ MLP(1, (32, tanh), (32, tanh), (1, identity); bias = true)
         σ ∈ RealDomain(; lower = 0.0)
     end
@@ -376,7 +380,7 @@ push!(loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
 push!(loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
 
 iteration_blocks = 100
-for _ in 2:iteration_blocks
+for _ = 2:iteration_blocks
 
     fpm = fit(
         model_ex3,
@@ -384,7 +388,7 @@ for _ in 2:iteration_blocks
         coef(fpm),
         MAP(NaivePooled());
         optim_options = (; iterations = 10),
-    );  
+    )
 
     push!(loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
     push!(loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
@@ -404,8 +408,8 @@ f
 # 4.2. Regularization to prevent overfitting
 
 model_ex4 = @model begin
-    @param begin  
-        nn ∈ MLP(1, (32, tanh), (32, tanh), (1, identity); bias = true, reg = L2(1.))
+    @param begin
+        nn ∈ MLP(1, (32, tanh), (32, tanh), (1, identity); bias = true, reg = L2(1.0))
         σ ∈ RealDomain(; lower = 0.0)
     end
     @covariates x
@@ -430,7 +434,7 @@ push!(reg_loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
 push!(reg_loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
 
 iteration_blocks = 100
-for _ in 2:iteration_blocks
+for _ = 2:iteration_blocks
 
     fpm = fit(
         model_ex4,
@@ -438,7 +442,7 @@ for _ in 2:iteration_blocks
         coef(fpm),
         MAP(NaivePooled());
         optim_options = (; iterations = 10),
-    );  
+    )
 
     push!(reg_loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
     push!(reg_loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
