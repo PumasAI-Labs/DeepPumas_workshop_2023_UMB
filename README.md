@@ -1,8 +1,16 @@
 # Agenda for the UMB workshop
 
-Tuesday, February 20, 14:00 to 23:00 CET
+Tuesday, February 20, 08:00 to 17:00 ET<br>
+Niklas Korsbo, Julius Martensen, Mohamed Tarek, Andreu Vall
 
-## Machine learning and neural networks (lecture, 50 minutes)
+## Introduction and set up <br>
+(30 minutes, NK, JM, MT, AV)
+
+- Logging in the UMB JuliaHub instance
+- Cloning the WS repository
+
+## Machine learning and neural networks <br>
+Lecture (40 minutes, AV) & Hands on (40 minutes, AV)
 
 - Deep learning  (massive data)
 - SciML (limited data, combine knowledge and data-driven)
@@ -11,35 +19,38 @@ Tuesday, February 20, 14:00 to 23:00 CET
 - Non-linearities (lower and upper bounded, positive, unbounded)
 - Correct specification (design) of a neural network, especially output (for example, bounded non-lin can not work with unbounded data)
 
-## Developing neural network models (hands on, 40 minutes)
+## Coffee break <br>
+(15 minutes)
 
-- Hands-on related to lecture above
-- Original title: Fitting, overfitting and regularizing neural networks
+## Augmented individual parameters
+Lecture (50 minutes, MT) & Hands on (30 minutes, AV)
 
-## Coffee break (15 minutes)
+- "DeepPumas: Combining ML ..." (MT)
+- Basic exercises (AV)
+- More complete workflow? (AV)
 
-## Scientific machine learning (lecture, 30 minutes)
+## Scientific machine learning <br>
+Lecture (30 minutes, JM) and Hands on (10 minutes, AV)
 
-- Ideas from Chris R. talks?
+- Presentation JM
+- Basic example (AV)
 
-## Modeling dynamics with DeepPumas (hands on, 40 minutes)
+## Lunch Break <br>
+(60 minutes)
 
-- Hands-on related to lecture below
-- How much data is it necessary to fit this (surprisingly little for dynamics; covariates need more though)
-- Exercise: try with fewer patients. When does it stop working?
-- Prepare exercises with demo29 and demo30, fewer / more random effects in iNN
+## Non-linear mixed effects modeling with DeepPumas
+Lecture (30 minutes, NK) & Hands on (30 minutes, AV, NK)
 
-## Augmented individual parameters (lecture, 30 minutes)
+- Lecture (Niklas)
+- Basic examples (Andreu)
+- Complete example (demo29, demo30? Niklas)
+<!-- - How much data is it necessary to fit this (surprisingly little for dynamics; covariates need more though) -->
+<!-- - Exercise: try with fewer patients. When does it stop working? fewer / more random effects in iNN -->
 
-- Explain augmentation of individual parameters
+## Concluding remarks 
+(10 minutes, NK)
 
-## Modeling prognostic factors with DeepPumas (hands on, 40 minutes)
-
-- Random effects
-
-## Lunch Break (60 minutes)
-
-<!-- FROM HERE ON NIKLAS TAKES CARE OF IT -->
+<!-- 
 
 ## DeepPumas Tumor size modeling – identifying dynamics (60 minutes)
 
@@ -49,4 +60,4 @@ Tuesday, February 20, 14:00 to 23:00 CET
 
 ## DeepPumas joint tumor size inhibition and overall survival model – automatic identification of tumor size effect on hazard (60 minutes)
 
-## Concluding remarks and outlining the future. (30 minutes)
+-->
