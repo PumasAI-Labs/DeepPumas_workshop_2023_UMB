@@ -4,6 +4,19 @@ using PumasPlots.CairoMakie
 
 #TODO Add units to my comments and to plots
 
+# 
+# TABLE OF CONTENTS
+# 
+# 1. IDENTIFICATION OF MODEL DYNAMICS
+# 1.1. Sample data based on a known model
+# 1.2. Delegate the identification of dynamics to a neural network
+# 1.3. Exercise: Assess the quality of predictions on higher doses
+# 1.4. Combine existing domain knowledge and a neural network
+# 1.5. Exercise: Revisit exercise 1.3 with the combined model
+#
+
+# 1.1 Sample data based on a known model
+
 """
 Helper Pumas model to generate synthetic data.
 It assumes one compartment and oral dosing. #TODO Name of dynamics?
@@ -29,31 +42,22 @@ data_model = @model begin
     end
 end
 
-# Simulate two one-subject populations with same 
-# `true_parameters` but different dosage regimens
+# sample a population of one subject only!
 
 true_parameters = (; tvImax = 1.1, tvIC50 = 0.8, tvKa = 1.0, σ = 0.1)
 
-simobs_medium_dose = simobs(
+sim = simobs(
     data_model,
     Subject(; events = DosageRegimen(5.0)),
     true_parameters;
     obstimes = 0:2:10,
 )
-pop_medium_dose = [Subject(simobs_medium_dose)]
-plotgrid(pop_medium_dose)
+pop = [Subject(sim)]
 
-simobs_large_dose = simobs(
-    data_model,
-    Subject(; events = DosageRegimen(15.0)),
-    true_parameters;
-    obstimes = 0:1:20,
-)
-pop_large_dose = [Subject(simobs_large_dose)]
-plotgrid!(pop_large_dose)
+plotgrid(pop)
 
+# 1.2. Delegate the identification of dynamics to a neural network
 
-# A SciML model where the full dynamics of central is unknown
 ude_model = @model begin
     @param begin
         mlp ∈ MLP(2, 6, 6, (1, identity); reg = L2(0.5))    # neural network with 2 inputs and 1 output
@@ -61,58 +65,79 @@ ude_model = @model begin
         σ ∈ RealDomain(; lower = 0.0)                       # residual error
     end
     @pre begin
-        mlp_ = mlp
+        mlp_ = only ∘ mlp
         Ka = tvKa
     end
     @dynamics begin
-        Depot' = -Ka * Depot                # `Depot` dynamics are known
-        Central' = mlp_(Depot, Central)[1]  # `Central` dynamics are completely unknown
+        Depot' = -Ka * Depot                                # known
+        Central' = mlp_(Depot, Central)                     # left as function of `Depot` and `Central`
     end
     @derived begin
         Outcome ~ @. Normal(Central, σ)
     end
 end
 
-fpm1 = fit(ude_model, pop_medium_dose, init_params(ude_model), MAP(NaivePooled()))
+fpm = fit(ude_model, pop, init_params(ude_model), MAP(NaivePooled()))
 
 # The interpolation performance, and usually extrapolation, tends to be fairly
 # good. It depends a bit on the data (noise, sparsity, identifiability).
-plotgrid(predict(fpm1; obstimes = 0:0.1:15))
+plotgrid(predict(fpm; obstimes = 0:0.1:15))
 
-# How does this preform under a different dose?
-plotgrid(predict(ude_model, pop_large_dose, coef(fpm1); obstimes = 0:0.1:15))
+# 1.3. Exercise: Assess the quality of predictions on higher doses
 
-# Let's try again but this time we encode some more knowledge into the model,
-#leaving less for the ML to capture.
+solution_ex13 = begin
 
-model2 = @model begin
+    # sample another population with the same `true_parameters` but higher doses
+    simobs_higher_dose = simobs(
+        data_model,
+        Subject(; events = DosageRegimen(15.0)),    # compared to 5.0 mg above
+        true_parameters;                            # same as above
+        obstimes = 0:1:20,
+    )
+    pop_higher_dose = [Subject(simobs_higher_dose)]
+
+    plotgrid!(pop_higher_dose)
+
+    # predictions of `ude_model` on higher dose
+    plotgrid(predict(ude_model, pop_higher_dose, coef(fpm); obstimes = 0:0.1:15))
+
+end
+
+# 1.4. Combine existing domain knowledge and a neural network
+
+ude_model_knowledge = @model begin
     @param begin
-        NN ∈ MLP(1, 4, 4, (1, identity, false); reg = L2(0.5))
-        tvKa ∈ RealDomain(; lower = 0.0)
-        σ ∈ RealDomain(; lower = 0.0)
+        mlp ∈ MLP(1, 6, 6, (1, identity); reg = L2(0.5))    # neural network with 2 inputs and 1 output
+        tvKa ∈ RealDomain(; lower = 0.0)                    # typical value of absorption rate constant
+        σ ∈ RealDomain(; lower = 0.0)                       # residual error
     end
     @pre begin
+        mlp_ = only ∘ mlp
         Ka = tvKa
-        _NN = NN
     end
     @dynamics begin
-        Depot' = -Ka * Depot
-        Central' = Ka * Depot - _NN(Central)[1]
+        Depot' = -Ka * Depot                                # known
+        Central' = Ka * Depot - mlp_(Central)               # knowledge of conservation added
     end
     @derived begin
         Outcome ~ @. Normal(Central, σ)
     end
 end
 
+fpm_knowledge =
+    fit(ude_model_knowledge, pop, init_params(ude_model_knowledge), MAP(NaivePooled()))
 
-fpm2 = fit(model2, pop_medium_dose, sample_params(model2), MAP(NaivePooled()))
+plotgrid(predict(fpm_knowledge; obstimes = 0:0.1:15))  # prediction on `pop`
 
-plotgrid(predict(fpm2; obstimes = 0:0.1:15))
+# 1.5. Exercise: Revisit exercise 1.3 with the combined model
 
-# Now, again with the dose we never trained on.
-plotgrid(predict(model2, pop_large_dose, coef(fpm2); obstimes = 0:0.1:25))
-
-# Perhaps I'm guilty of tweaking the data generation until the first example
-# extrapolated poorly to new doses while the second one does well... But it
-# still get's the point across that encoding more scientific knowledge into the
-# model just makes it better.
+solution_ex15 = begin
+    plotgrid(
+        predict(
+            ude_model_knowledge,
+            pop_higher_dose,
+            coef(fpm_knowledge);
+            obstimes = 0:0.1:25,
+        ),
+    )
+end
