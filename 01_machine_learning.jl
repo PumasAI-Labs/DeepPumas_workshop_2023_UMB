@@ -1,5 +1,6 @@
 using DeepPumas
-using DeepPumas: SimpleChainDomain, SimpleChains
+using DeepPumas: SimpleChainDomain
+using DeepPumas.SimpleChains
 using StableRNGs
 using CairoMakie
 using Distributions
@@ -28,7 +29,7 @@ using JuliaFormatter
 #      to model a quadratic relationship). Is the number of iterations relevant there?
 # 3.3. The impact of the NN size
 # 
-# EXAMPLE 4: INSPECTION OF THE VALIDATION LOSS AND REGULARIZATION
+# 4: INSPECTION OF THE VALIDATION LOSS AND REGULARIZATION
 #
 # 4.1. Validation loss as a proxy for generalization performance
 # 4.2. Regularization to prevent overfitting
@@ -89,6 +90,7 @@ model_ex1 = @model begin
                 static(1),  # one input
                 TurboDense{true}(identity, 1),  # one output with intercept
             ),
+            # TODO NOT HAVE SIMPLECHAIN HERE BUT USE MLP OR DIRECTLY PARAMS
         )
         σ ∈ RealDomain(; lower = 0.0)
     end
@@ -267,7 +269,7 @@ solution_ex32 = begin
         population_ex2,
         init_params(model_ex1),
         MAP(NaivePooled());
-        optim_options = (; iterations = 10),
+        optim_options = (; iterations = 10), # TODO NOT EVEN THIS IS RUNNING THIS LONG
     )
     ŷ_underfit =
         [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
@@ -370,6 +372,7 @@ fpm = fit(
     population_ex2,
     init_params(model_ex3),
     MAP(NaivePooled());
+    optim_alg=DeepPumas.Pumas.Optim.GradientDescent(),  # TODO
     optim_options = (; iterations = 10),
 );
 
@@ -387,6 +390,7 @@ for _ = 2:iteration_blocks
         population_ex2,
         coef(fpm),
         MAP(NaivePooled());
+        optim_alg=DeepPumas.Pumas.Optim.GradientDescent(),  # TODO
         optim_options = (; iterations = 10),
     )
 
