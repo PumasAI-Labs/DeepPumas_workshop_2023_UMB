@@ -2,23 +2,22 @@ using DeepPumas
 using StableRNGs
 using PumasUtilities
 using CairoMakie
+using JuliaFormatter
+
+
+#
+# TABLE OF CONTENTS
+#
 
 
 """
-Example derived from https://tutorials.pumas.ai/html/PKPDDataAnalysisBook/PK/pk01.html
-
-Background
-
-        - Structural model        - One compartment linear elimination
-        - Route of administration - IV bolus
-        - Dosage Regimen          - 10 mg IV
-        - Number of Subjects      - 4
+Helper Pumas model to generate synthetic data. The model assumes 
+one compartment linear elimination model and IV administration.
+(adapted from https://tutorials.pumas.ai/html/PKPDDataAnalysisBook/PK/pk01.html)
 """
-
-""" Data generating model. """
 data_model = @model begin
     @param begin
-        tvCl ∈ RealDomain(lower = 0)    # typical value of clearance (L/hr)
+        tvCL ∈ RealDomain(lower = 0)    # typical value of CLearance (L/hr)
         tvVc ∈ RealDomain(lower = 0)    # typical value of central volume of distribution (L)
         Ω ∈ PDiagDomain(2)              # covariance matrix of random effects (between subject variability)
         σ ∈ RealDomain(lower = 0)       # residual error
@@ -27,27 +26,27 @@ data_model = @model begin
         η ~ MvNormal(Ω)                 # per subject random effects
     end
     @pre begin
-        Cl = tvCl * exp(η[1])           # per subject clearance (L/hr)
+        CL = tvCL * exp(η[1])           # per subject CLearance (L/hr)
         Vc = tvVc * exp(η[2])           # per subject volume of central compartment (L)
     end
     @dynamics begin
-        Central' = -(Cl / Vc) * Central # ODE for concentration of drug in plasma (μg/L)
+        Central' = -(CL / Vc) * Central # ODE for concentration of drug in plasma (mg/L)
     end
     @derived begin
-        cp := @. 1000 * (Central / Vc)  # x1000 to match dose (mg) and concentration (μg/L)
+        cp := @. 1000 * (Central / Vc)  # concentration plasma (x1000 to convert mg/L to μg/L)
         dv ~ @. Normal(cp, σ)
     end
 end
 
 population = synthetic_data(data_model; rng = StableRNG(0))
-preds = predict(data_model, population[1:4], init_params(data_model))
-plotgrid(preds)
+preds = predict(data_model, population[1:4], init_params(data_model));
+plotgrid(preds; xlabel = "Time [What is the unit?]", ylabel = "Concentration [μg/L]")
 
 """ Model with a universal differential equation. """
 ude_model = @model begin
     @param begin
         mlp ∈ MLP(3, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        tvCl ∈ RealDomain(lower = 0)
+        tvCL ∈ RealDomain(lower = 0)
         tvVc ∈ RealDomain(lower = 0)
         Ω ∈ PDiagDomain(2)
         σ ∈ RealDomain(lower = 0)
@@ -56,15 +55,15 @@ ude_model = @model begin
         η ~ MvNormal(Ω)
     end
     @pre begin
-        Cl = tvCl * exp(η[1])
+        CL = tvCL * exp(η[1])
         Vc = tvVc * exp(η[2])
         mlp_ = only ∘ mlp  # technical
     end
     @dynamics begin
-        Central' = mlp_(Cl, Vc, Central)
+        Central' = mlp_(CL, Vc, Central)
     end
     @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match dose (mg) and concentration (μg/L)
+        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
         dv ~ @. Normal(cp, σ)
     end
 end
@@ -90,7 +89,7 @@ plotgrid(pred[1:4])
 fmlp = coef(fpm).mlp
 fmlp(1, 1, 1)
 map(fmlp, (1, 1, 0:0.1:10))
-# Central' = -(Cl / Vc) * Central
+# Central' = -(CL / Vc) * Central
 
 xrange = 0:0.01:1
 res = map(xrange) do x
@@ -98,7 +97,7 @@ res = map(xrange) do x
 end
 lines(xrange, res)
 
--(coef(fpm).tvCl / coef(fpm).tvVc)
+-(coef(fpm).tvCL / coef(fpm).tvVc)
 
 # IT IS POSSIBLE TO resume training WITH PREVIOUS PARAMS
 fpm = fit(
@@ -138,7 +137,7 @@ plotgrid(pred; pred = false)
 ude_model_2 = @model begin
     @param begin
         mlp ∈ MLP(1, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        # tvCl ∈ RealDomain(lower = 0)
+        # tvCL ∈ RealDomain(lower = 0)
         tvVc ∈ RealDomain(lower = 0)
         # Ω ∈ PDiagDomain(2)
         σ ∈ RealDomain(lower = 0)
@@ -150,7 +149,7 @@ ude_model_2 = @model begin
         Central' = mlp_(Central)  # dCentral/dt = mlp_(Central)
     end
     @derived begin
-        cp := @. 1000 * (Central / tvVc)# x1000 to match dose (mg) and concentration (μg/L)
+        cp := @. 1000 * (Central / tvVc)# x1000 to match concentration (μg/L) to dose (mg)
         dv ~ @. Normal(cp, σ)
     end
 end
@@ -181,7 +180,7 @@ lines(xrange, res)
 ude_model_3 = @model begin
     @param begin
         mlp ∈ MLP(1, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        # tvCl ∈ RealDomain(lower = 0)
+        # tvCL ∈ RealDomain(lower = 0)
         tvVc ∈ RealDomain(lower = 0)
         Ω ∈ PDiagDomain(1)
         σ ∈ RealDomain(lower = 0)
@@ -197,7 +196,7 @@ ude_model_3 = @model begin
         Central' = mlp_(Central)
     end
     @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match dose (mg) and concentration (μg/L)
+        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
         dv ~ @. Normal(cp, σ)
     end
 end
@@ -218,7 +217,7 @@ plotgrid(pred)
 ude_model_4 = @model begin
     @param begin
         mlp ∈ MLP(1, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        tvCl ∈ RealDomain(lower = 0)
+        tvCL ∈ RealDomain(lower = 0)
         tvVc ∈ RealDomain(lower = 0)
         Ω ∈ PDiagDomain(2)
         σ ∈ RealDomain(lower = 0)
@@ -227,15 +226,15 @@ ude_model_4 = @model begin
         η ~ MvNormal(Ω)
     end
     @pre begin
-        Cl = tvCl * exp(η[1])
+        CL = tvCL * exp(η[1])
         Vc = tvVc * exp(η[2])
         mlp_ = only ∘ mlp  # technical
     end
     @dynamics begin
-        Central' = mlp_(Cl, Vc, Central)
+        Central' = mlp_(CL, Vc, Central)
     end
     @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match dose (mg) and concentration (μg/L)
+        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
         dv ~ @. Normal(cp, σ)
     end
 end
@@ -244,7 +243,7 @@ end
 ude_model_3 = @model begin
     @param begin
         mlp ∈ MLP(1, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        # tvCl ∈ RealDomain(lower = 0)
+        # tvCL ∈ RealDomain(lower = 0)
         tvVc ∈ RealDomain(lower = 0)
         Ω ∈ PDiagDomain(1)
         σ ∈ RealDomain(lower = 0)
@@ -261,7 +260,7 @@ ude_model_3 = @model begin
         Central' = mlp_(Central, η_nn)
     end
     @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match dose (mg) and concentration (μg/L)
+        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
         dv ~ @. Normal(cp, σ)
     end
 end
@@ -273,7 +272,7 @@ end
 ude_model_4 = @model begin
     @param begin
         mlp ∈ MLP(2, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        tvCl ∈ RealDomain(lower = 0)
+        tvCL ∈ RealDomain(lower = 0)
         tvVc ∈ RealDomain(lower = 0)
         Ω ∈ PDiagDomain(2)
         σ ∈ RealDomain(lower = 0)
@@ -282,15 +281,15 @@ ude_model_4 = @model begin
         η ~ MvNormal(Ω)
     end
     @pre begin
-        Cl = tvCl * exp(η[1])
+        CL = tvCL * exp(η[1])
         Vc = tvVc * exp(η[2])
         mlp_ = only ∘ mlp  # technical
     end
     @dynamics begin
-        Central' = mlp_(Cl, Central)
+        Central' = mlp_(CL, Central)
     end
     @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match dose (mg) and concentration (μg/L)
+        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
         dv ~ @. Normal(cp, σ)
     end
 end
@@ -311,7 +310,7 @@ plotgrid(pred)
 ude_model_5 = @model begin
     @param begin
         mlp ∈ MLP(2, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        # tvCl ∈ RealDomain(lower = 0)
+        # tvCL ∈ RealDomain(lower = 0)
         tvVc ∈ RealDomain(lower = 0)
         ω_Vc ∈ RealDomain(1)
         σ ∈ RealDomain(lower = 0)
@@ -329,7 +328,7 @@ ude_model_5 = @model begin
         Central' = mlp_(η_, Central)
     end
     @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match dose (mg) and concentration (μg/L)
+        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
         dv ~ @. Normal(cp, σ)
     end
 end
