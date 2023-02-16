@@ -19,12 +19,11 @@ datamodel = @model begin
     Central' = Ka * Depot - Imax * Central / (IC50 + Central)
   end
   @derived begin
-    # Essentially an additive noise model but constrained to positive observations.
-    Outcome ~ @. Gamma((Central + 1e-10)^2/σ^2, σ^2 / (Central + 1e-10))
+    Outcome ~ @. Normal(Central, Central * σ)
   end
 end
 
-p_true = (; tvImax = 1.1, tvIC50=0.8, tvKa=1., σ = 0.2)
+p_true = (; tvImax = 1.1, tvIC50=0.8, tvKa=1., σ = 0.03)
 
 # A single PK time course.
 sim = simobs(datamodel, Subject(; events=DosageRegimen(5.)), p_true; obstimes=range(0, stop=10, length=10))
@@ -57,6 +56,9 @@ end
 training_data_no_dose = read_pumas(DataFrame(sim); observations=[:Outcome], event_data=false)
 
 fpm_ml = fit(ml_model, training_data_no_dose, sample_params(ml_model), MAP(NaivePooled()))
+plotgrid(predict(fpm_ml))
+# Looks good right? Well, let's plot a bit more densely.
+
 plotgrid(predict(fpm_ml; obstimes=0:0.1:15))
 # This model hits the data points just fine but it would have trouble doing extrapolation
 # and it does not respect any of our scientific knowledge of PK curves. Furthermore, we
@@ -103,7 +105,7 @@ plotgrid(predict(sciml_model_1, test_data_large_dose, coef(fpm1); obstimes=0:0.1
 
 # There's a bit of randomness involved (mostly from the data generation), but I'm guessing
 # that you're seeing how the model works pretty well on the dose it was trained on and even
-# extrapoletes well to mutiple doses. Already we're seeing huge utility over a more
+# extrapolates well to mutiple doses. Already we're seeing huge utility over a more
 # traditional ML approach. However, the model does not extrapolate very well with doses that
 # are substantially higher than trained on so there's still room for improvement.
 
@@ -112,7 +114,7 @@ plotgrid(predict(sciml_model_1, test_data_large_dose, coef(fpm1); obstimes=0:0.1
 # for the ML to capture.
 sciml_model_2 = @model begin
   @param begin
-    NN ∈ MLP(1, 4, 4, (1, identity, false); reg=L2(0.5))
+    NN ∈ MLP(1, 6, 6, (1, identity); reg=L2(1.0))
     tvKa ∈ RealDomain(; lower=0.)
     σ ∈ RealDomain(; lower=0.)
   end
@@ -174,11 +176,11 @@ datamodel_pop = @model begin
     Central' = Ka * Depot - Imax * Central / (IC50 + Central)
   end
   @derived begin
-    Outcome ~ @. Gamma((Central + 1e-10)^2/σ^2, σ^2 / (Central + 1e-10))
+    Outcome ~ @. Normal(Central, Central * σ)
   end
 end
 
-sims = [simobs(datamodel_pop, Subject(; events=DosageRegimen(5.)), p_true; obstimes=range(0, stop=10, length=6)) for _ in 1:12]
+sims = [simobs(datamodel_pop, Subject(; events=DosageRegimen(5.), id=i), p_true; obstimes=range(0, stop=10, length=6)) for i in 1:12]
 training_population = Subject.(sims)
 plotgrid(training_population)
 
@@ -205,8 +207,11 @@ end
 # we're here randomly picking only two times for the PK observations for each synthetic
 # subject and then we fit one of the sciml models on the whole population.
 
-sims2 = [simobs(datamodel_pop, Subject(; events=DosageRegimen(5.)), p_true; obstimes=10 .* rand(2)) for _ in 1:25]
+sims2 = [simobs(datamodel_pop, Subject(; events=DosageRegimen(5.), id=i), p_true; obstimes=10 .* rand(2)) for i in 1:25]
 training_population2 = Subject.(sims2)
+
+plotgrid(training_population2)
+
 fpm_pop_2 = fit(sciml_model_2, training_population2, init_params(sciml_model_2), MAP(NaivePooled()))
 
 pred2 = predict(fpm_pop_2; obstimes = 0:0.01:15)
@@ -224,5 +229,3 @@ end
 # and so the predictions are the same for all patients. To account for heterogeniety, we
 # will need to take yet another step in this ongoing saga and explore DeepNLME.
 
-
-data_multi_subject_multi_dose = Subject.(simobs(datamodel_pop, Subject(; events=DosageRegimen(5.; ii=5, addl=2)), p_true; obstimes=0:1:20))
