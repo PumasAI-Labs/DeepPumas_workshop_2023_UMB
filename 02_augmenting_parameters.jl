@@ -160,9 +160,19 @@ mlp_domain = MLP(
 )
 
 ho = hyperopt(mlp_domain, target_model_independent_population_deterministic)
+# TODO
+# or alternatively directly fit without hyperparam selection
+# fmlp = fit(
+#     mlp_domain, 
+#     target_model_independent_population_deterministic,
+#     optim_options=(; loss=l2)
+# )
 
 mlp_model = ho.ml.ml.model
 mlp_parameters = ho.ml.ml.param
 y_hat = mlp_model(target_model_independent_population_deterministic.x, mlp_parameters)
 
 pair_plots(target_model_independent_population_deterministic.x, Array(y_hat))
+
+# TODO
+# ADD HERE WORKFLOW AS IN DEMO30 or https://github.com/PumasAI/DeepPumas-Workshop/blob/main/code/02-model_identification.jl
