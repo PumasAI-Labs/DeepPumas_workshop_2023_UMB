@@ -1,6 +1,6 @@
 # Agenda for the UMB workshop
 
-Tuesday, February 20, 08:00 to 17:00 ET<br>
+Monday, February 20, 08:00 to 17:00 ET<br>
 Niklas Korsbo, Julius Martensen, Mohamed Tarek, Andreu Vall
 
 ## Introduction and set up <br>
