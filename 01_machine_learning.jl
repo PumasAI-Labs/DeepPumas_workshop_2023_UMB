@@ -1,19 +1,16 @@
 using DeepPumas
-using DeepPumas: SimpleChainDomain
 using DeepPumas.SimpleChains
 using StableRNGs
 using CairoMakie
 using Distributions
 using Random
-using Printf
-using JuliaFormatter
 
 # 
 # TABLE OF CONTENTS
 # 
 # 1. A SIMPLE MACHINE LEARNING (ML) MODEL
 # 1.1. Sample subjects with an obvious `true_function`
-# 1.2. Model `true_function` with a DeepPumas linear regression
+# 1.2. Model `true_function` with a linear regression
 #
 # 2. CAPTURING COMPLEX RELATIONSHIPS
 #
@@ -29,7 +26,7 @@ using JuliaFormatter
 #      to model a quadratic relationship). Is the number of iterations relevant there?
 # 3.3. The impact of the NN size
 # 
-# 4: INSPECTION OF THE VALIDATION LOSS AND REGULARIZATION
+# 4. INSPECTION OF THE VALIDATION LOSS AND REGULARIZATION
 #
 # 4.1. Validation loss as a proxy for generalization performance
 # 4.2. Regularization to prevent overfitting
@@ -50,7 +47,7 @@ data_model = @model begin
 end
 
 #
-# EXAMPLE 1: A SIMPLE MACHINE LEARNING (ML) MODEL
+# 1. A SIMPLE MACHINE LEARNING (ML) MODEL
 #
 # 1.1. Sample subjects with an obvious `true_function`
 # 1.2. Model `true_function` with a DeepPumas linear regression
@@ -71,31 +68,28 @@ population_ex1 = synthetic_data(
 x = [only(subject.covariates().x) for subject in population_ex1]
 y = [only(subject.observations.y) for subject in population_ex1]
 
-f = scatter(
-    x,
-    y;
-    axis = (xlabel = "covariate x", ylabel = "observation y"),
-    label = "data (each dot is a subject)",
-);
-lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true");
-axislegend();
-f
+begin
+    f = scatter(
+        x,
+        y;
+        axis = (xlabel = "covariate x", ylabel = "observation y"),
+        label = "data (each dot is a subject)",
+    );
+    lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true");
+    axislegend();
+    f
+end
 
-# 1.2. Model `true_function` with a DeepPumas linear regression
+# 1.2. Model `true_function` with a linear regression
 
 model_ex1 = @model begin
     @param begin
-        linreg ∈ SimpleChainDomain(  # define linear regression y = a * x + b
-            SimpleChain(
-                static(1),  # one input
-                TurboDense{true}(identity, 1),  # one output with intercept
-            ),
-            # TODO NOT HAVE SIMPLECHAIN HERE BUT USE MLP OR DIRECTLY PARAMS
-        )
+        a ∈ RealDomain()
+        b ∈ RealDomain()
         σ ∈ RealDomain(; lower = 0.0)
     end
     @covariates x
-    @pre ŷ = only(linreg(x))
+    @pre ŷ = a * x + b
     @derived y ~ @. Normal(ŷ, σ)
 end
 
@@ -103,26 +97,27 @@ fpm = fit(
     model_ex1,
     population_ex1,
     init_params(model_ex1),
-    MAP(NaivePooled());
-    optim_options = (; iterations = 100),
+    MAP(NaivePooled())
 );
 fpm  # `true_function` is y = x (that is, a = 1 b = 0) and σ = 0.25
 
 ŷ = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
 
-f = scatter(
-    x,
-    y;
-    axis = (xlabel = "covariate x", ylabel = "observation y"),
-    label = "data (each dot is a subject)",
-);
-scatter!(x, ŷ, label = "prediction")
-lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
-axislegend()
-f
+begin
+    f = scatter(
+        x,
+        y;
+        axis = (xlabel = "covariate x", ylabel = "observation y"),
+        label = "data (each dot is a subject)",
+    );
+    scatter!(x, ŷ, label = "prediction")
+    lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
+    axislegend()
+    f
+end
 
 #
-# EXAMPLE 2: CAPTURING COMPLEX RELATIONSHIPS
+# 2. CAPTURING COMPLEX RELATIONSHIPS
 #
 # 2.1. Sample subjects with a more complex `true_function`
 # 2.2. Exercise: Reason about using a linear regression to model the current `true_function`
@@ -144,15 +139,17 @@ population_ex2 = synthetic_data(
 x = [only(subject.covariates().x) for subject in population_ex2]
 y = [only(subject.observations.y) for subject in population_ex2]
 
-f = scatter(
-    x,
-    y;
-    axis = (xlabel = "covariate x", ylabel = "observation y"),
-    label = "data (each dot is a subject)",
-);
-lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true");
-axislegend();
-f
+begin
+    f = scatter(
+        x,
+        y;
+        axis = (xlabel = "covariate x", ylabel = "observation y"),
+        label = "data (each dot is a subject)",
+    );
+    lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true");
+    axislegend();
+    f
+end
 
 # 2.2. Exercise: Reason about using a linear regression to model the current `true_function`
 
@@ -161,8 +158,7 @@ solution_ex22 = begin
         model_ex1,
         population_ex2,
         init_params(model_ex1),
-        MAP(NaivePooled());
-        optim_options = (; iterations = 100),
+        MAP(NaivePooled())
     )
     ŷ_ex22 = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
 
@@ -182,7 +178,7 @@ end
 
 model_ex2 = @model begin
     @param begin
-        nn ∈ MLP(1, (8, tanh), (1, identity); bias = true)  # API supporting SimpleChains and Flux
+        nn ∈ MLP(1, (8, tanh), (1, identity); bias = true)
         σ ∈ RealDomain(; lower = 0.0)
     end
     @covariates x
@@ -201,19 +197,21 @@ fpm  # try to make sense of the parameters in the NN
 
 ŷ_ex23 = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
 
-f = scatter(
-    x,
-    y;
-    axis = (xlabel = "covariate x", ylabel = "observation y"),
-    label = "data (each dot is a subject)",
-);
-scatter!(x, ŷ_ex23, label = "prediction (fpm_ex23)")
-lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
-axislegend()
-f
+begin
+    f = scatter(
+        x,
+        y;
+        axis = (xlabel = "covariate x", ylabel = "observation y"),
+        label = "data (each dot is a subject)",
+    );
+    scatter!(x, ŷ_ex23, label = "prediction")
+    lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
+    axislegend()
+    f
+end
 
 #
-# EXAMPLE 3: BASIC UNDERFITTING AND OVERFITTING
+# 3. BASIC UNDERFITTING AND OVERFITTING
 #
 # 3.1. Exercise: Investigate the impact of the number of fitting iterations in NNs
 #      (Hint: Train `model_ex2` on `population_ex2` for few and for many iterations.)
@@ -241,7 +239,7 @@ solution_ex31 = begin
         population_ex2,
         init_params(model_ex2),
         MAP(NaivePooled());
-        optim_options = (; iterations = 10_000),  #TODO: NOT RUNNING THIS LONG ACTUALLY
+        optim_options = (; iterations = 5_000),
     )
     ŷ_overfit =
         [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
@@ -254,7 +252,7 @@ solution_ex31 = begin
     )
     scatter!(x, ŷ_underfit, label = "prediction (10 iterations)")
     scatter!(x, ŷ_ex23, label = "prediction (100 iterations)")
-    scatter!(x, ŷ_overfit, label = "prediction (10k iterations)")
+    scatter!(x, ŷ_overfit, label = "prediction (5k iterations)")
     lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
     axislegend()
     f
@@ -262,27 +260,18 @@ end
 
 # 3.2. Exercise: Reason about Exercise 2.2 again (that is, using a linear regression 
 #      to model a quadratic relationship). Is the number of iterations relevant there?
+#      Investigate the effect of `max_iterations`.
 
 solution_ex32 = begin
+    max_iterations = 10
     fpm = fit(
         model_ex1,
         population_ex2,
         init_params(model_ex1),
         MAP(NaivePooled());
-        optim_options = (; iterations = 10), # TODO NOT EVEN THIS IS RUNNING THIS LONG
+        optim_options = (; iterations = max_iterations),
     )
-    ŷ_underfit =
-        [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
-
-    fpm = fit(
-        model_ex1,
-        population_ex2,
-        init_params(model_ex1),
-        MAP(NaivePooled());
-        optim_options = (; iterations = 10_000),  #TODO: NOT RUNNING THIS LONG ACTUALLY
-    )
-    ŷ_overfit =
-        [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
+    ŷ = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
 
     f = scatter(
         x,
@@ -290,9 +279,8 @@ solution_ex32 = begin
         axis = (xlabel = "covariate x", ylabel = "observation y"),
         label = "data (each dot is a subject)",
     )
-    scatter!(x, ŷ_underfit, label = "prediction (10 iterations)")
-    scatter!(x, ŷ_ex22, label = "prediction (100 iterations)")
-    scatter!(x, ŷ_overfit, label = "prediction (10k iterations)")
+    scatter!(x, ŷ, label = "prediction ($max_iterations iterations)")
+    scatter!(x, ŷ_ex22, label = "prediction (exercise 2.2)")
     lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
     axislegend()
     f
@@ -300,7 +288,6 @@ end
 
 # 3.3. The impact of the NN size
 
-#TODO: This in SimpleChains would be much faster with larger net
 model_ex3 = @model begin
     @param begin
         nn ∈ MLP(1, (32, tanh), (32, tanh), (1, identity); bias = true)
@@ -321,24 +308,25 @@ fpm = fit(
 
 ŷ = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
 
-f = scatter(
-    x,
-    y;
-    axis = (xlabel = "covariate x", ylabel = "observation y"),
-    label = "data (each dot is a subject)",
-);
-scatter!(x, ŷ, label = "prediction (32x32 units - 1k iter)")
-lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
-axislegend()
-f
+begin
+    f = scatter(
+        x,
+        y;
+        axis = (xlabel = "covariate x", ylabel = "observation y"),
+        label = "data (each dot is a subject)",
+    );
+    scatter!(x, ŷ, label = "prediction (32x32 units - 1k iter)")
+    lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
+    axislegend()
+    f
+end
 
 #
-# EXAMPLE 4: INSPECTION OF THE VALIDATION LOSS AND REGULARIZATION
+# 4. INSPECTION OF THE VALIDATION LOSS AND REGULARIZATION
 #
 # 4.1. Validation loss as a proxy for generalization performance
 # 4.2. Regularization to prevent overfitting
 # 
-#TODO: Again, it is difficult to overfit. I find it strange.
 
 # 4.1. Validation loss as a proxy for generalization performance
 
@@ -354,60 +342,64 @@ population_valid = synthetic_data(
 x_valid = [only(subject.covariates().x) for subject in population_valid]
 y_valid = [only(subject.observations.y) for subject in population_valid]
 
-f = scatter(
-    x_train,
-    y_train;
-    axis = (xlabel = "covariate x", ylabel = "observation y"),
-    label = "training data",
-);
-scatter!(x_valid, y_valid; label = "validation data");
-lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true");
-axislegend();
-f
+begin
+    f = scatter(
+        x_train,
+        y_train;
+        axis = (xlabel = "covariate x", ylabel = "observation y"),
+        label = "training data",
+    );
+    scatter!(x_valid, y_valid; label = "validation data");
+    lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true");
+    axislegend();
+    f
+end
 
-loss_train_l, loss_valid_l = [], []
-
-fpm = fit(
-    model_ex3,
-    population_ex2,
-    init_params(model_ex3),
-    MAP(NaivePooled());
-    optim_alg=DeepPumas.Pumas.Optim.GradientDescent(),  # TODO
-    optim_options = (; iterations = 10),
-);
-
-loss_train = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_train))
-loss_valid = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_valid))
-
-push!(loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
-push!(loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
-
-iteration_blocks = 100
-for _ = 2:iteration_blocks
+begin
+    loss_train_l, loss_valid_l = [], []
 
     fpm = fit(
         model_ex3,
         population_ex2,
-        coef(fpm),
+        init_params(model_ex3),
         MAP(NaivePooled());
-        optim_alg=DeepPumas.Pumas.Optim.GradientDescent(),  # TODO
         optim_options = (; iterations = 10),
-    )
+    );
+
+    loss_train = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_train))
+    loss_valid = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_valid))
 
     push!(loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
     push!(loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
 
+    iteration_blocks = 100
+    for _ = 2:iteration_blocks
+
+        fpm = fit(
+            model_ex3,
+            population_ex2,
+            coef(fpm),
+            MAP(NaivePooled());
+            optim_options = (; iterations = 10),
+        )
+
+        push!(loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
+        push!(loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
+
+    end
 end
 
-f, ax = scatterlines(
-    1:iteration_blocks,
-    Float32.(loss_train_l);
-    label = "training",
-    axis = (; xlabel = "Blocks of 10 iterations", ylabel = "Squared loss"),
-)
-scatterlines!(1:iteration_blocks, Float32.(loss_valid_l); label = "validation")
-axislegend()
-f
+begin
+    f, ax = scatterlines(
+        1:iteration_blocks,
+        Float32.(loss_train_l);
+        label = "training",
+        axis = (; xlabel = "Blocks of 10 iterations", ylabel = "Squared loss"),
+    )
+    scatterlines!(1:iteration_blocks, Float32.(loss_valid_l); label = "validation")
+    axislegend()
+    f
+end
 
 # 4.2. Regularization to prevent overfitting
 
@@ -421,46 +413,50 @@ model_ex4 = @model begin
     @derived y ~ @. Normal(ŷ, σ)
 end
 
-reg_loss_train_l, reg_loss_valid_l = [], []
-
-fpm = fit(
-    model_ex4,
-    population_ex2,
-    init_params(model_ex4),
-    MAP(NaivePooled());
-    optim_options = (; iterations = 10),
-);
-
-loss_train = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_train))
-loss_valid = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_valid))
-
-push!(reg_loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
-push!(reg_loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
-
-iteration_blocks = 100
-for _ = 2:iteration_blocks
+begin
+    reg_loss_train_l, reg_loss_valid_l = [], []
 
     fpm = fit(
         model_ex4,
         population_ex2,
-        coef(fpm),
+        init_params(model_ex4),
         MAP(NaivePooled());
         optim_options = (; iterations = 10),
-    )
+    );
+
+    loss_train = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_train))
+    loss_valid = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_valid))
 
     push!(reg_loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
     push!(reg_loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
 
+    iteration_blocks = 100
+    for _ = 2:iteration_blocks
+
+        fpm = fit(
+            model_ex4,
+            population_ex2,
+            coef(fpm),
+            MAP(NaivePooled());
+            optim_options = (; iterations = 10),
+        )
+
+        push!(reg_loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
+        push!(reg_loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
+
+    end
 end
 
-f, ax = scatterlines(
-    1:iteration_blocks,
-    Float32.(loss_train_l);
-    label = "training",
-    axis = (; xlabel = "Blocks of 10 iterations", ylabel = "Squared loss"),
-)
-scatterlines!(1:iteration_blocks, Float32.(loss_valid_l); label = "validation")
-scatterlines!(1:iteration_blocks, Float32.(reg_loss_train_l); label = "training (L2)")
-scatterlines!(1:iteration_blocks, Float32.(reg_loss_valid_l); label = "validation (L2)")
-axislegend()
-f
+begin
+    f, ax = scatterlines(
+        1:iteration_blocks,
+        Float32.(loss_train_l);
+        label = "training",
+        axis = (; xlabel = "Blocks of 10 iterations", ylabel = "Squared loss"),
+    )
+    scatterlines!(1:iteration_blocks, Float32.(loss_valid_l); label = "validation")
+    scatterlines!(1:iteration_blocks, Float32.(reg_loss_train_l); label = "training (L2)")
+    scatterlines!(1:iteration_blocks, Float32.(reg_loss_valid_l); label = "validation (L2)")
+    axislegend()
+    f
+end
