@@ -3,56 +3,41 @@
 Monday, February 20, 08:00 to 17:00 ET<br>
 Niklas Korsbo, Julius Martensen, Mohamed Tarek, Andreu Vall
 
-## Introduction and set up <br>
-(30 minutes, NK, AV)
-
+### Introduction and set up (30 minutes, NK, AV)
 - Introduction to Pumas-AI, Inc
 - Set up for the hands-on sessions
 
-## Machine learning and neural networks <br>
-(75 minutes, AV)
-
-- Lecture on machine learning and neural networks
+### Machine learning and neural networks (75 minutes, AV)
+- Lecture
 - Hands-on session
 
-## Discussion <br>
-(15 minutes, NK, AV)
+### Discussion (15 minutes, NK, AV)
 
-## Break <br>
-(15 minutes)
+### Break (15 minutes)
 
-## Augmented individual parameters
-(90 minutes, MT, AV)
+### Augmented individual parameters (90 minutes, MT, AV)
 
-- Lecture on the augmentation workflow
+- Lecture
 - Hands-on session
 
-## Discussion <br>
-(15 minutes, NK, MT, AV)
+### Discussion (15 minutes, NK, MT, AV)
 
-## Break <br>
-(15 minutes)
+### Break (15 minutes)
 
-## Scientific machine learning <br>
-(75 minutes, JM, AV)
+### Scientific machine learning (75 minutes, JM, AV)
 
-- Lecture on scientific machine learning
+- Lecture
 - Hands-on session
 
-## Discussion <br>
-(15 minutes, NK, JM, AV)
+### Discussion (15 minutes, NK, JM, AV)
 
-## Break <br>
-(60 minutes)
+### Break (60 minutes)
 
-## Non-linear mixed effects modeling
-(75 minutes, NK, AV)
+### Non-linear mixed effects modeling (75 minutes, NK, AV)
 
-- Lecture on non-linear mixed effects modeling
+- Lecture
 - Hands-on session
 
-## Discussion <br>
-(15 minutes, NK, AV)
+### Discussion (15 minutes, NK, AV)
 
-## Concluding remarks 
-(10 minutes, NK)
+### Concluding remarks (10 minutes, NK)
