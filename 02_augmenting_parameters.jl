@@ -1,89 +1,48 @@
 using DeepPumas
+using DeepPumas.SimpleChains
+# using PumasPlots
+using PumasPlots.CairoMakie
 using StableRNGs
-using PumasUtilities
-using CairoMakie
+# using PumasUtilities
+# using CairoMakie
+include("utils/utils.jl")
+
+# TABLE OF CONTENTS
+# 1. Sample population where individual parameters are fixed effects
+# 2. Sample population where individual parameters are random effects
+# 3. Study the relationship between covariates and random effects
+# 4. Predict individual parameters as a function of covariates 
+# 5. DeepPumas model augmentation
+
+
+# 1. Sample population where individual parameters are fixed effects
 
 """
-    true_function(x)
-
-Starting from x=65, increase slowly from 1 up until 2.
-
-# Examples
-```jldoctest
-julia> true_function.([55, 65, 75, 85, 95])
-5-element Vector{Real}:
- 1
- 1
- 1.6321205588285577
- 1.8646647167633872
- 1.9502129316321362
-```
-"""
-function true_function(x)
-    x <= 65 ? 1 : 2 - exp((65 - x) / 10)
-end
-
-"""
-Plot scatterplots for all input-ouput pairs in `target`.
-"""
-function plot(target::DeepPumas.FitTarget)
-    fig = Figure()
-    for i in 1:numinputs(target)
-        for j in 1:numoutputs(target)
-            scatter(
-                fig[i, j],target.x[i, :], target.y[j, :], 
-                axis = (
-                    xlabel = "covariate[$j]",
-                    ylabel = "η[$i]", 
-                )
-            )
-        end
-    end
-    fig
-end
-
-"""
-Plot all raw-to-raw scatterplots between matrices `A` and `B`.
-"""
-function pair_plots(A::Matrix, B::Matrix)
-
-    num_plot_rows, num_plot_cols = size(A)[1], size(B)[1]
-
-    fig = Figure()
-    for i in 1:num_plot_rows
-        for j in 1:num_plot_cols
-            scatter(fig[i, j], A[i, :], B[j, :])
-        end
-    end
-    fig
-end
-
-""" 
-Pumas model generating data where the deviation of each subject from 
-`tvCl` and `tvVc` is deterministically determined by `age` and `weight`.
+Helper Pumas model to generate synthetic data. The deviation of each 
+subject from `tvCL` and `tvVc` is deterministically determined by the 
+covariates `age` and `weight`.
 """
 model_deterministic = @model begin
     @param begin
-        tvCl ∈ RealDomain(lower = 0)        # typical value of clearance (L/hr)
-        tvVc ∈ RealDomain(lower = 0)        # typical value of central volume of distribution (L)
-        Ω ∈ PDiagDomain(2)                  # covariance matrix of random effects (between subject variability)
-        σ ∈ RealDomain(lower = 0)           # residual error
+        tvCL ∈ RealDomain(lower = 0)    # typical value of clearance
+        tvVc ∈ RealDomain(lower = 0)    # typical value of central volume of distribution
+        σ ∈ RealDomain(lower = 0)       # residual error
     end
     @covariates age weight
     @pre begin
-        Cl = tvCl * true_function(age)      # per subject clearance (L/hr)
-        Vc = tvVc * true_function(weight)   # per subject volume of central compartment (L)
+        CL = tvCL * saturating_function(age)    # per subject clearance
+        Vc = tvVc * saturating_function(weight) # per subject volume of central compartment
     end
     @dynamics begin
-        Central' = -(Cl / Vc) * Central     # ODE for concentration of drug in plasma (μg/L)
+        Central' = -(CL / Vc) * Central # ODE for concentration of drug in plasma
     end
     @derived begin
-        cp := @. 1000 * (Central / Vc)      # x1000 to match dose (mg) and concentration (μg/L)
+        cp := @. 1000 * (Central / Vc)  # x1000 to match dose (mg) and concentration (μg/L)
         dv ~ @. Normal(cp, σ)
     end
 end
 
-population_deterministic = synthetic_data(
+pop_deterministic = synthetic_data(
     model_deterministic;
     covariates = (
         age = truncated(Normal(55, 10), 35, Inf),
@@ -92,14 +51,17 @@ population_deterministic = synthetic_data(
     rng = StableRNG(0),
 )
 
-""" 
-Pumas model generating data where the deviation of each subject from 
-`tvCl` and `tvVc` is independent of `age` and `weight`.
+# 2. Sample population where individual parameters are random effects
+
 """
-model_independent = @model begin
+Helper Pumas model to generate synthetic data. The deviation of each 
+subject from `tvCL` and `tvVc` is random, and independent from the 
+covariates `age` and `weight`.
+"""
+model_random = @model begin
     @param begin
-        tvCl ∈ RealDomain(lower = 0)    # typical value of clearance (L/hr)
-        tvVc ∈ RealDomain(lower = 0)    # typical value of central volume of distribution (L)
+        tvCL ∈ RealDomain(lower = 0)    # typical value of clearance
+        tvVc ∈ RealDomain(lower = 0)    # typical value of central volume of distribution
         Ω ∈ PDiagDomain(2)              # covariance matrix of random effects (between subject variability)
         σ ∈ RealDomain(lower = 0)       # residual error
     end
@@ -108,11 +70,11 @@ model_independent = @model begin
     end
     @covariates age weight
     @pre begin
-        Cl = tvCl * exp(η[1])           # per subject clearance (L/hr)
-        Vc = tvVc * exp(η[2])           # per subject volume of central compartment (L)
+        CL = tvCL * exp(η[1])           # per subject clearance
+        Vc = tvVc * exp(η[2])           # per subject volume of central compartment
     end
     @dynamics begin
-        Central' = -(Cl / Vc) * Central # ODE for concentration of drug in plasma (μg/L)
+        Central' = -(CL / Vc) * Central # ODE for concentration of drug in plasma
     end
     @derived begin
         cp := @. 1000 * (Central / Vc)  # x1000 to match dose (mg) and concentration (μg/L)
@@ -120,8 +82,8 @@ model_independent = @model begin
     end
 end
 
-population_independent = synthetic_data(
-    model_independent;
+pop_random = synthetic_data(
+    model_random;
     covariates = (
         age = truncated(Normal(55, 10), 35, Inf),
         weight = truncated(Normal(75, 10), 60, Inf),
@@ -129,50 +91,89 @@ population_independent = synthetic_data(
     rng = StableRNG(0),
 )
 
-target_model_independent_population_deterministic = preprocess(
-    model_independent, 
-    population_deterministic, 
-    init_params(model_independent), 
-    FOCE()
-)
+# 3. Study the relationship between covariates and random effects
+# Hints: 
+#   - `DeepPumas.preprocess` computes EBEs of random effects and
+#      prepares a mapping of covariates to those EBEs
+#   - Use `DeepPumas.preprocess` on `model_random`, both for 
+#     `pop_deterministic` and for `pop_random`, because the data 
+#     generating process is unknown to us.
+#   - The function `pair_plots` plots pairwise scatterplots.
 
-target_model_independent_population_independent = preprocess(
-    model_independent, 
-    population_independent, 
-    init_params(model_independent), 
-    FOCE()
-)
+cov2randeff_deterministic =
+    preprocess(model_random, pop_deterministic, init_params(model_random), FOCE())
+pair_plots(cov2randeff_deterministic.x, cov2randeff_deterministic.y)
 
+cov2randeff_random = preprocess(model_random, pop_random, init_params(model_random), FOCE())
+pair_plots(cov2randeff_random.x, cov2randeff_random.y)
+
+# 4. Predict individual parameters as a function of covariates 
+
+mlp = MLP(2, 8, (2, identity))
+fmlp_deterministic =
+    fit(mlp, cov2randeff_deterministic; optim_options = (; optim_alg = SimpleChains.ADAM()))
+ŷ = Array(mlp.model(cov2randeff_deterministic.x, fmlp.ml.ml.param))
 pair_plots(
-    target_model_independent_population_deterministic.x, 
-    target_model_independent_population_deterministic.y
+    cov2randeff_deterministic.y,
+    ŷ,
+    xlabels = ["y₁", "y₂"],
+    ylabels = ["ŷ₁", "ŷ₂"],
 )
 pair_plots(
-    target_model_independent_population_independent.x,
-    target_model_independent_population_independent.y
+    cov2randeff_deterministic.x,
+    ŷ,
+    xlabels = ["age", "weight"],
+    ylabels = ["ŷ₁", "ŷ₂"],
 )
 
-mlp_domain = MLP(
-    numinputs(target_model_independent_population_deterministic), 
-    16, 16, 
-    (numoutputs(target_model_independent_population_deterministic), identity), 
-    reg = L2()
-)
+mlp = MLP(2, (64, relu), (64, relu), (2, identity))
+fmlp = fit(mlp, cov2randeff_random; optim_options = (; optim_alg = SimpleChains.ADAM()))
+ŷ = mlp.model(cov2randeff_random.x, fmlp.ml.ml.param)
+pair_plots(cov2randeff_random.y, ŷ, xlabels = ["y₁", "y₂"], ylabels = ["ŷ₁", "ŷ₂"])
+pair_plots(cov2randeff_random.x, ŷ, xlabels = ["age", "weight"], ylabels = ["ŷ₁", "ŷ₂"])
 
-ho = hyperopt(mlp_domain, target_model_independent_population_deterministic)
-# TODO
-# or alternatively directly fit without hyperparam selection
-# fmlp = fit(
-#     mlp_domain, 
-#     target_model_independent_population_deterministic,
-#     optim_options=(; loss=l2)
+# 5. DeepPumas model augmentation
+
+# fpm_deterministic = fit(
+#   model_deterministic,
+#   pop_deterministic,
+#   init_params(model_deterministic),
+#   MAP(NaivePooled())
 # )
 
-mlp_model = ho.ml.ml.model
-mlp_parameters = ho.ml.ml.param
-y_hat = mlp_model(target_model_independent_population_deterministic.x, mlp_parameters)
+# pred = predict(model_deterministic, pop_deterministic, coef(fpm_deterministic));
+# plotgrid(pred[1:8])
 
-pair_plots(target_model_independent_population_deterministic.x, Array(y_hat))
+# fpm_random = fit(
+#   model_random,
+#   pop_random,
+#   init_params(model_random),
+#   MAP(NaivePooled())
+# )
+
+# pred = predict(model_random, pop_random, coef(fpm_random));
+# plotgrid(pred[1:8])
+
+
+fpm = fit(
+  model_random,
+  pop_deterministic,
+  init_params(model_random),
+  MAP(NaivePooled())
+)
+
+pred = predict(model_random, pop_deterministic, coef(fpm));
+plotgrid(pred[1:8])
+
+augmented_model = augment(fpm, cov2randeff_deterministic)
+
+# The `init_params` of an augmented model is the combination of the best parameters of the
+# FittedPumasModel and the fitted machine learning model.
+p_covs = init_params(augmented_model)
+covariate_pred = predict(augmented_model, testpop, p_covs; obstimes)
+
+plotgrid(true_pred; pred = (; label="Best possible pred", color=(:black, 0.5)), ipred = false)
+plotgrid!(covariate_pred; pred = (; linestyle=:dash))
 
 # TODO
 # ADD HERE WORKFLOW AS IN DEMO30 or https://github.com/PumasAI/DeepPumas-Workshop/blob/main/code/02-model_identification.jl
