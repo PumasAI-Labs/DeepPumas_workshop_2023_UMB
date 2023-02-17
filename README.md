@@ -1,63 +1,58 @@
-# Agenda for the UMB workshop
+# DeepPumas Workshop at UMB
 
 Monday, February 20, 08:00 to 17:00 ET<br>
 Niklas Korsbo, Julius Martensen, Mohamed Tarek, Andreu Vall
 
 ## Introduction and set up <br>
-(30 minutes, NK, JM, MT, AV)
+(30 minutes, NK, AV)
 
-- Logging in the UMB JuliaHub instance
-- Cloning the WS repository
+- Introduction to Pumas-AI, Inc
+- Set up for the hands-on sessions
 
 ## Machine learning and neural networks <br>
-Lecture (40 minutes, AV) & Hands on (40 minutes, AV)
+(75 minutes, AV)
 
-- Deep learning  (massive data)
-- SciML (limited data, combine knowledge and data-driven)
-- MLPs
-- Regularization and its connection to Gaussian and Laplace priors
-- Non-linearities (lower and upper bounded, positive, unbounded)
-- Correct specification (design) of a neural network, especially output (for example, bounded non-lin can not work with unbounded data)
+- Lecture on machine learning and neural networks
+- Hands-on session
 
-## Coffee break <br>
+## Discussion <br>
+(15 minutes, NK, AV)
+
+## Break <br>
 (15 minutes)
 
 ## Augmented individual parameters
-Lecture (50 minutes, MT) & Hands on (30 minutes, AV)
+(90 minutes, MT, AV)
 
-- "DeepPumas: Combining ML ..." (MT)
-- Basic exercises (AV)
-- More complete workflow? (AV)
+- Lecture on the augmentation workflow
+- Hands-on session
+
+## Discussion <br>
+(15 minutes, NK, MT, AV)
+
+## Break <br>
+(15 minutes)
 
 ## Scientific machine learning <br>
-Lecture (30 minutes, JM) and Hands on (10 minutes, AV)
+(75 minutes, JM, AV)
 
-- Presentation JM
-- Basic example (AV)
+- Lecture on scientific machine learning
+- Hands-on session
 
-## Lunch Break <br>
+## Discussion <br>
+(15 minutes, NK, JM, AV)
+
+## Break <br>
 (60 minutes)
 
-## Non-linear mixed effects modeling with DeepPumas
-Lecture (30 minutes, NK) & Hands on (30 minutes, AV, NK)
+## Non-linear mixed effects modeling
+(75 minutes, NK, AV)
 
-- Lecture (Niklas)
-- Basic examples (Andreu)
-- Complete example (demo29, demo30? Niklas)
-<!-- - How much data is it necessary to fit this (surprisingly little for dynamics; covariates need more though) -->
-<!-- - Exercise: try with fewer patients. When does it stop working? fewer / more random effects in iNN -->
+- Lecture on non-linear mixed effects modeling
+- Hands-on session
+
+## Discussion <br>
+(15 minutes, NK, AV)
 
 ## Concluding remarks 
 (10 minutes, NK)
-
-<!-- 
-
-## DeepPumas Tumor size modeling – identifying dynamics (60 minutes)
-
-## DeepPumas survival modeling – automatic identification of hazard (45 minutes)
-
-## Coffee Break (15 minutes)
-
-## DeepPumas joint tumor size inhibition and overall survival model – automatic identification of tumor size effect on hazard (60 minutes)
-
--->
