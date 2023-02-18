@@ -37,6 +37,7 @@ include("utils/utils.jl")
 Helper Pumas model to generate synthetic data. The deviation of each 
 subject from `tvCL` and `tvVc` is deterministically determined by the 
 covariates `age` and `weight`.
+(adapted from https://tutorials.pumas.ai/html/PKPDDataAnalysisBook/PK/pk01.html)
 """
 model_deterministic = @model begin
     @param begin
