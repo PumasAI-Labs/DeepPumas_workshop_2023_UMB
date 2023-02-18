@@ -15,12 +15,12 @@ Niklas Korsbo, Julius Martensen, Mohamed Tarek, Andreu Vall
     - Lecture
     - Hands-on session
 - **Discussion** (15 minutes, NK, MT, AV)
-- **Break** (15 minutes)
+- **Lunch break** (60 minutes)
 - **Scientific machine learning** (75 minutes, JM, AV)
     - Lecture
     - Hands-on session
 - **Discussion** (15 minutes, NK, JM, AV)
-- **Break** (60 minutes)
+- **Break** (15 minutes)
 - **Non-linear mixed effects modeling** (75 minutes, NK, AV)
     - Lecture
     - Hands-on session
