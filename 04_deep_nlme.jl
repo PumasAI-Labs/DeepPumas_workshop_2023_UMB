@@ -5,10 +5,22 @@ using CairoMakie
 using JuliaFormatter
 
 
-#
+# 
 # TABLE OF CONTENTS
+# 
+# 1. MODELS WITHOUT RANDOM EFFECTS
 #
-
+# 1.1. A simple UDE model without random effects
+# 1.2. Investigate the dynamics of Central captured by the `model_1`
+#
+# 2. MODELS WITH RANDOM EFFECTS
+#
+# 2.1. Extend `model_1` adding random effects for Vc
+# 2.2. Extend `model_2` adding random effects for CL in the dynamics
+# 2.3. Compare `model_3` and `data_model`
+# 2.4. In `model_3`, can we switch CL by an "anoynmous" random effect?
+# 2.5. In `model_3`, should adding Vc in the `@dynamics` block help?
+#
 
 """
 Helper Pumas model to generate synthetic data. The model assumes 
@@ -39,18 +51,21 @@ data_model = @model begin
 end
 
 population = synthetic_data(data_model; rng = StableRNG(0))
-preds = predict(data_model, population[1:4], init_params(data_model));
-plotgrid(preds)
+plotgrid(population[1:4])
 
-# EXAMPLE WITH UDE HAVING ONLY CENTRAL AND NO RANDOM EFFECTS 
-# THIS MEANS THAT THERE ISN'T ANY PERSONALIZATION AND PREDICTIONS
-# ARE EXACTLY THE SAME FOR ALL PATIENTS
-ude_model_2 = @model begin
+# 
+# 1. MODELS WITHOUT RANDOM EFFECTS
+#
+# 1.1. A simple UDE model without random effects
+# 1.2. Investigate the dynamics of Central captured by the `model_1`
+#
+
+# 1.1. A simple UDE model without random effects
+
+model_1 = @model begin
     @param begin
-        mlp ∈ MLP(1, 4, 4, (1, identity); reg = L2(1.0))
-        # tvCL ∈ RealDomain(lower = 0)
+        mlp ∈ MLP(1, 4, 4, (1, identity))
         tvVc ∈ RealDomain(lower = 0)
-        # Ω ∈ PDiagDomain(2)
         σ ∈ RealDomain(lower = 0)
     end
     @pre begin
@@ -65,172 +80,88 @@ ude_model_2 = @model begin
     end
 end
 
-fpm2 = fit(
-    ude_model_2,
+fpm_1 = fit(
+    model_1,
     population,
-    init_params(ude_model_2),
+    init_params(model_1),
     MAP(NaivePooled());
-    diffeq_options = (; alg = Rodas5P()),
-    optim_options = (; iterations = 500),
+    diffeq_options = (; alg = Rodas5P())
 )
 
-pred = predict(ude_model_2, population[1:4], coef(fpm2); obstimes = 0:0.1:10);
-plotgrid(pred)
+pred = predict(fpm_1);
+plotgrid(pred[1:4])
 
-fmlp2 = only ∘ coef(fpm2).mlp
-central_prime = [fmlp2(central) for central in 0:0.1:5]
+# Without random effects (nor covariates), `model_1` can not distinguish patients
+# Without random effects, `pred` and `ipred` are identical
+
+# 1.2. Investigate the dynamics of Central captured by the `model_1`
+
+fmlp = only ∘ coef(fpm_1).mlp;
+central_prime = [fmlp(central) for central in 0:0.1:5]
 lines(
     0:0.1:5,
     central_prime;
     axis = (xlabel = "Central", ylabel = "Central' = mlp(Central)"),
 )
 
-# EXAMPLE WITH UDE HAVING ONLY CENTRAL BUT ADDING RANDOM EFFECTS 
+# The larger Central is, the fastest is the elimination
+# The overall captured dynamics are reasonable
 
-ude_model_3 = @model begin
+#
+# 2. MODELS WITH RANDOM EFFECTS
+#
+# 2.1. Extend `model_1` adding random effects for Vc
+# 2.2. Extend `model_2` adding random effects for CL in the dynamics
+# 2.3. Compare `model_3` and `data_model`
+# 2.4. In `model_3`, can we switch CL by an "anoynmous" random effect?
+# 2.5. In `model_3`, should adding Vc in the `@dynamics` block help?
+#
+
+# 2.1. Extend `model_1` adding random effects for Vc
+
+model_2 = @model begin
     @param begin
-        mlp ∈ MLP(1, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        # tvCL ∈ RealDomain(lower = 0)
+        mlp ∈ MLP(1, 4, 4, (1, identity))
         tvVc ∈ RealDomain(lower = 0)
-        Ω ∈ PDiagDomain(1)
+        ω_Vc ∈ RealDomain(lower = 0)
         σ ∈ RealDomain(lower = 0)
     end
     @random begin
-        η ~ MvNormal(Ω)
+        η_Vc ~ Normal(0, ω_Vc)
     end
     @pre begin
-        Vc = tvVc * exp(η[1])
-        mlp_ = only ∘ mlp  # technical
+        Vc = tvVc * exp(η_Vc)
+        mlp_ = only ∘ mlp
     end
     @dynamics begin
         Central' = mlp_(Central)
     end
     @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
+        cp := @. 1000 * (Central / Vc)
         dv ~ @. Normal(cp, σ)
     end
 end
 
-fpm3 = fit(
-    ude_model_3,
+fpm_2 = fit(
+    model_2,
     population,
-    init_params(ude_model_3),
+    init_params(model_2),
     MAP(FOCE());
     diffeq_options = (; alg = Rodas5P()),
     optim_options = (; iterations = 150),
 )
 
-pred = predict(ude_model_3, population[1:4], coef(fpm3); obstimes = 0:0.1:10);
-plotgrid(pred)
+pred = predict(fpm_2);
+plotgrid(pred[1:4])
 
-# ALL HAVE SAME STARTING VALUE BUT POSSIBLY DIFFERENT CURVES
+# Without covariates, `pred`s are the same for all patients
+# Thanks to the random effects on Vc, `ipred`s adapt to each patient
 
-# CL as unique random effect should work equally well as model_1
-# naming it CL is "mean" beacuse it doesn't mean CL anymore, it means random effect
-ude_model_4 = @model begin
+# 2.2. Extend `model_2` adding random effects for CL in the dynamics
+
+model_3 = @model begin
     @param begin
-        mlp ∈ MLP(2, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        tvCL ∈ RealDomain(lower = 0)
-        tvVc ∈ RealDomain(lower = 0)
-        Ω ∈ PDiagDomain(2)
-        σ ∈ RealDomain(lower = 0)
-    end
-    @random begin
-        η ~ MvNormal(Ω)
-    end
-    @pre begin
-        CL = tvCL * exp(η[1])
-        Vc = tvVc * exp(η[2])
-        mlp_ = only ∘ mlp  # technical
-    end
-    @dynamics begin
-        Central' = mlp_(CL, Central)
-    end
-    @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
-        dv ~ @. Normal(cp, σ)
-    end
-end
-
-fpm4 = fit(
-    ude_model_4,
-    population,
-    init_params(ude_model_4),
-    MAP(FOCE());
-    diffeq_options = (; alg = Rodas5P()),
-    optim_options = (; iterations = 50),
-)
-
-pred = predict(ude_model_4, population[1:12], coef(fpm4); obstimes = 0:0.1:10);
-plotgrid(pred)
-
-# CALL IT ETA_nn instead of CL, which wasn't its meaning anyway
-ude_model_5 = @model begin
-    @param begin
-        mlp ∈ MLP(2, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        # tvCL ∈ RealDomain(lower = 0)
-        tvVc ∈ RealDomain(lower = 0)
-        ω_Vc ∈ RealDomain(1)
-        σ ∈ RealDomain(lower = 0)
-    end
-    @random begin
-        η_Vc ~ Normal(0, ω_Vc)
-        η_nn ~ Normal(0, 1)
-    end
-    @pre begin
-        η_ = η_nn
-        Vc = tvVc * exp(η_Vc)
-        mlp_ = only ∘ mlp  # technical
-    end
-    @dynamics begin
-        Central' = mlp_(η_, Central)
-    end
-    @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
-        dv ~ @. Normal(cp, σ)
-    end
-end
-
-# ABOVE AND BELOW ARE THE SAME I THINK
-
-# RANDOM EFFECTS IN DYNAMICS to discharge MLP from patient specific characteritics
-ude_model_3 = @model begin
-    @param begin
-        mlp ∈ MLP(1, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        # tvCL ∈ RealDomain(lower = 0)
-        tvVc ∈ RealDomain(lower = 0)
-        Ω ∈ PDiagDomain(1)
-        σ ∈ RealDomain(lower = 0)
-    end
-    @random begin
-        η ~ MvNormal(Ω)
-        η_nn ~ MvNormal(Ω)
-    end
-    @pre begin
-        Vc = tvVc * exp(η[1])
-        mlp_ = only ∘ mlp  # technical
-    end
-    @dynamics begin
-        Central' = mlp_(Central, η_nn)
-    end
-    @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
-        dv ~ @. Normal(cp, σ)
-    end
-end
-
-
-
-
-""" 
-Model with a universal differential equation and randon effects.
-"""
-# ALL HAVE SAME STARTING VALUE BUT POSSIBLY DIFFERENT CURVES
-# discuss how CL and Vc are actually interchangeable if using Central' = mlp_(CL, Vc, Central)[1]
-
-ude_model = @model begin
-    @param begin
-        mlp ∈ MLP(3, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
+        mlp ∈ MLP(2, 4, 4, (1, identity))
         tvCL ∈ RealDomain(lower = 0)
         tvVc ∈ RealDomain(lower = 0)
         Ω ∈ PDiagDomain(2)
@@ -245,7 +176,7 @@ ude_model = @model begin
         mlp_ = only ∘ mlp
     end
     @dynamics begin
-        Central' = mlp_(CL, Vc, Central)
+        Central' = mlp_(Central, CL)
     end
     @derived begin
         cp := @. 1000 * (Central / Vc)
@@ -253,41 +184,111 @@ ude_model = @model begin
     end
 end
 
-fpm = fit(
-    ude_model,
+fpm_3 = fit(
+    model_3,
     population,
-    init_params(ude_model),
+    init_params(model_3),
     MAP(FOCE());
     diffeq_options = (; alg = Rodas5P()),
     optim_options = (; iterations = 150),
 )
 
-pred = predict(ude_model, population[1:4], coef(fpm));
+pred = predict(fpm_3);
 plotgrid(pred[1:4])
 
-#  DISCUSS THIS Model
-# IDENTIFIABILITY ISSUES
-# EXAMINING THE MLP ON ITS OWN, FOR EXAMPLE PLOTTING
-fmlp = only ∘ coef(fpm).mlp
-central_prime = [fmlp(1.0, 1.0, central) for central in 0:0.1:5]
-lines(
-    0:0.1:5,
-    central_prime;
-    axis = (xlabel = "Central", ylabel = "Central' = mlp(CL=1, Vc=1, Central)"),
-)
+# Without covariates, `pred`s are the same for all patients
+# Thanks to the random effects η[1] and η[2], `ipred`s adapt to each patient
 
-# IT IS POSSIBLE TO resume training WITH PREVIOUS PARAMS
-fpm = fit(
-    ude_model,
+# 2.3. Compare `model_3` and `data_model`
+# Hints:
+# - Should `model_2` be able to produce good predictions? Why?
+# - What are the differences between the dynamics in the two models?
+
+# 2.4. In `model_3`, can we switch CL by an "anoynmous" random effect?
+# TODO: This model doesn't train properly always. It seems that having η_ after Central helps?
+model_4 = @model begin
+    @param begin
+        mlp ∈ MLP(2, 4, 4, (1, identity))
+        tvVc ∈ RealDomain(lower = 0)
+        ω_Vc ∈ RealDomain(lower = 0)
+        σ ∈ RealDomain(lower = 0)
+    end
+    @random begin
+        η ~ Normal(0, 1)
+        η_Vc ~ Normal(0, ω_Vc)
+    end
+    @pre begin
+        η_ = η
+        Vc = tvVc * exp(η_Vc)
+        mlp_ = only ∘ mlp
+    end
+    @dynamics begin
+        Central' = mlp_(Central, η_)
+    end
+    @derived begin
+        cp := @. 1000 * (Central / Vc)
+        dv ~ @. Normal(cp, σ)
+    end
+end
+
+fpm_4 = fit(
+    model_4,
     population,
-    coef(fpm),
+    init_params(model_4),
     MAP(FOCE());
     diffeq_options = (; alg = Rodas5P()),
-    optim_options = (; iterations = 75),
+    optim_options = (; iterations = 150),
 )
 
-pred = predict(ude_model, population[1:4], coef(fpm); obstimes = 0:0.1:10);
-plotgrid(pred)
-plotgrid(pred; pred = false)
+pred = predict(fpm_4);
+plotgrid(pred[1:4])
 
+# Without covariates, `pred`s are the same for all patients
+# Thanks to the random effects η and η_Vc, `ipred`s adapt to each patient
+# Calling the ranfom effect η, η[1], or η_CL does not change its function
 
+# 2.5. In `model_3`, should adding Vc in the `@dynamics` block help?
+
+model_5 = @model begin
+    @param begin
+        mlp ∈ MLP(3, 4, 4, (1, identity))
+        tvCL ∈ RealDomain(lower = 0)
+        tvVc ∈ RealDomain(lower = 0)
+        Ω ∈ PDiagDomain(2)
+        σ ∈ RealDomain(lower = 0)
+    end
+    @random begin
+        η ~ MvNormal(Ω)
+    end
+    @pre begin
+        CL = tvCL * exp(η[1])
+        Vc = tvVc * exp(η[2])
+        mlp_ = only ∘ mlp
+    end
+    @dynamics begin
+        Central' = mlp_(Central, CL, Vc)
+    end
+    @derived begin
+        cp := @. 1000 * (Central / Vc)
+        dv ~ @. Normal(cp, σ)
+    end
+end
+
+fpm_5 = fit(
+    model_5,
+    population,
+    init_params(model_5),
+    MAP(FOCE());
+    diffeq_options = (; alg = Rodas5P()),
+    optim_options = (; iterations = 150),
+)
+
+pred = predict(fpm_5);
+plotgrid(pred[1:4])
+
+pred = predict(fpm_3);
+plotgrid(pred[1:4])
+
+# Vc is important in the `@derived` block to model concentration
+# However, Vc is redundant in the `@dynamics` block, because 
+# CL, through its random effect η[1] is already informing
