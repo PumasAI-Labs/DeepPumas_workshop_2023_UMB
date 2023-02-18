@@ -290,5 +290,5 @@ pred = predict(fpm_3);
 plotgrid(pred[1:4])
 
 # Vc is important in the `@derived` block to model concentration
-# However, Vc is redundant in the `@dynamics` block, because 
-# CL, through its random effect η[1] is already informing
+# However, Vc is redundant in the `@dynamics` block because CL, 
+# through its random effect η[1], is already informing
