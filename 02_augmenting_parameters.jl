@@ -163,7 +163,7 @@ plotgrid!(pred_augmented[1:8]; pred=(; label="Pred (initial params augmented mod
 
 # 3.4. Continue fitting the augmented model
 
-# DomainError with Inf. Ideas?
+# TODO: DomainError with Inf. Ideas?
 fapm = fit(
     model_augmented,
     population,
