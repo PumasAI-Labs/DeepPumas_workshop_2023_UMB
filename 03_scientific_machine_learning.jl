@@ -173,11 +173,11 @@ sims = [
     simobs(
         data_model,
         Subject(; events = DosageRegimen(5.0), id = i),
-        p_true;
-        obstimes = range(0, stop = 10, length = 6),
-    ) for i = 1:12
+        true_parameters;
+        obstimes = 0:1:10,
+    ) for i = 1:25
 ]
-training_population = Subject.(sims)
+population = Subject.(sims)
 
 fpm = fit(
     ude_model_knowledge,
@@ -187,6 +187,7 @@ fpm = fit(
 )
 
 pred = predict(fpm);
+plotgrid(pred)
 
 begin
     f = nothing
@@ -213,7 +214,7 @@ sims_sparse = [
         data_model,
         Subject(; events = DosageRegimen(5.0), id = i),
         true_parameters;
-        obstimes = 10 .* sort!(rand(2)),
+        obstimes = 11 .* sort!(rand(2)),
     ) for i = 1:25
 ]
 population_sparse = Subject.(sims_sparse)
