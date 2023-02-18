@@ -1,8 +1,7 @@
 using DeepPumas
 using PumasPlots
 using PumasPlots.CairoMakie
-
-#TODO Add units to my comments and to plots
+using StableRNGs
 
 # 
 # TABLE OF CONTENTS
@@ -18,20 +17,20 @@ using PumasPlots.CairoMakie
 # 1.1 Sample data based on a known model
 
 """
-Helper Pumas model to generate synthetic data.
-It assumes one compartment and oral dosing. #TODO Name of dynamics?
+Helper Pumas model to generate synthetic data. It assumes 
+one compartment non-linear elimination and oral dosing.
 """
 data_model = @model begin
     @param begin
-        tvImax ∈ RealDomain(; lower = 0.0, init = 1.1)  # typical value of maximum inhibition
-        tvIC50 ∈ RealDomain(; lower = 0.0, init = 0.8)  # typical value of concentration for half-way inhibition
-        tvKa ∈ RealDomain(; lower = 0.0)                # typical value of absorption rate constant
-        σ ∈ RealDomain(; lower = 0.0, init = 0.05)      # residual error
+        tvImax ∈ RealDomain(; lower = 0.0)  # typical value of maximum inhibition
+        tvIC50 ∈ RealDomain(; lower = 0.0)  # typical value of concentration for half-way inhibition
+        tvKa ∈ RealDomain(; lower = 0.0)    # typical value of absorption rate constant
+        σ ∈ RealDomain(; lower = 0.0)       # residual error
     end
     @pre begin
-        Imax = tvImax                                   # per subject value = typical value,
-        IC50 = tvIC50                                   # that is, no subject deviations, or,
-        Ka = tvKa                                       # in other words, no random effects
+        Imax = tvImax                       # per subject value = typical value,
+        IC50 = tvIC50                       # that is, no subject deviations, or,
+        Ka = tvKa                           # in other words, no random effects
     end
     @dynamics begin
         Depot' = -Ka * Depot
@@ -42,19 +41,43 @@ data_model = @model begin
     end
 end
 
-# sample a population of one subject only!
-
 true_parameters = (; tvImax = 1.1, tvIC50 = 0.8, tvKa = 1.0, σ = 0.1)
 
-sim = simobs(
+# simulate subjects A and B with different dosage
+sim_a = simobs(
     data_model,
     Subject(; events = DosageRegimen(5.0)),
     true_parameters;
-    obstimes = 0:2:10,
+    obstimes = 0:1:10,
 )
-pop = [Subject(sim)]
+plotgrid([Subject(sim_a)]; data = (; label = "Data (subject A)"))
 
-plotgrid(pop)
+sim_b = simobs(
+    data_model,
+    Subject(; events = DosageRegimen(10.0)),  # higher dose
+    true_parameters;
+    obstimes = 0:1:10,
+)
+plotgrid!([Subject(sim_b)]; data = (; label = "Data (subject B)"), color = :gray)
+
+# 0. Time model
+
+time_model = @model begin
+    @param begin
+        mlp ∈ MLP(1, 6, 6, (1, identity))
+        σ ∈ RealDomain(; lower = 0.0)
+    end
+    @derived Outcome ~ @. Normal(only(mlp(t)), σ)
+end
+
+pop_a = read_pumas(DataFrame(sim_a); observations = [:Outcome], event_data = false)
+fpm = fit(time_model, pop_a, init_params(time_model), MAP(NaivePooled()))
+pred_a = predict(fpm);
+plotgrid!(pred_a; pred = (; label = "Pred (subject A)"), ipred = false)
+
+pop_b = read_pumas(DataFrame(sim_b); observations = [:Outcome], event_data = false)
+pred_b = predict(time_model, pop_b, coef(fpm));
+plotgrid!(pred_b, pred = (; label = "Pred (subject B)", color = :red), ipred = false)
 
 # 1.2. Delegate the identification of dynamics to a neural network
 
@@ -77,31 +100,15 @@ ude_model = @model begin
     end
 end
 
-fpm = fit(ude_model, pop, init_params(ude_model), MAP(NaivePooled()))
+plotgrid([Subject(sim_a)]; data = (; label = "Data (subject A)"))
+plotgrid!([Subject(sim_b)]; data = (; label = "Data (subject B)"), color = :gray)
 
-# The interpolation performance, and usually extrapolation, tends to be fairly
-# good. It depends a bit on the data (noise, sparsity, identifiability).
-plotgrid(predict(fpm; obstimes = 0:0.1:15))
+fpm = fit(ude_model, [Subject(sim_a)], init_params(ude_model), MAP(NaivePooled()))
+pred_a = predict(fpm);
+plotgrid(pred_a; pred = (; label = "Pred (subject A)"), ipred = false)
 
-# 1.3. Exercise: Assess the quality of predictions on higher doses
-
-solution_ex13 = begin
-
-    # sample another population with the same `true_parameters` but higher doses
-    simobs_higher_dose = simobs(
-        data_model,
-        Subject(; events = DosageRegimen(15.0)),    # compared to 5.0 mg above
-        true_parameters;                            # same as above
-        obstimes = 0:1:20,
-    )
-    pop_higher_dose = [Subject(simobs_higher_dose)]
-
-    plotgrid!(pop_higher_dose)
-
-    # predictions of `ude_model` on higher dose
-    plotgrid(predict(ude_model, pop_higher_dose, coef(fpm); obstimes = 0:0.1:15))
-
-end
+pred_b = predict(ude_model, [Subject(sim_b)], coef(fpm));
+plotgrid!(pred_b, pred = (; label = "Pred (subject B)", color = :red), ipred = false)
 
 # 1.4. Combine existing domain knowledge and a neural network
 
@@ -124,20 +131,104 @@ ude_model_knowledge = @model begin
     end
 end
 
-fpm_knowledge =
-    fit(ude_model_knowledge, pop, init_params(ude_model_knowledge), MAP(NaivePooled()))
+fpm = fit(
+    ude_model_knowledge,
+    [Subject(sim_a)],
+    init_params(ude_model_knowledge),
+    MAP(NaivePooled()),
+)
 
-plotgrid(predict(fpm_knowledge; obstimes = 0:0.1:15))  # prediction on `pop`
+plotgrid([Subject(sim_a)]; data = (; label = "Data (subject A)"))
+plotgrid!([Subject(sim_b)]; data = (; label = "Data (subject B)"), color = :gray)
 
-# 1.5. Exercise: Revisit exercise 1.3 with the combined model
+pred_a = predict(fpm);
+plotgrid!(pred_a; pred = (; label = "Pred (subject A)"), ipred = false)
 
-solution_ex15 = begin
-    plotgrid(
-        predict(
-            ude_model_knowledge,
-            pop_higher_dose,
-            coef(fpm_knowledge);
-            obstimes = 0:0.1:25,
-        ),
-    )
+pred_b = predict(ude_model_knowledge, [Subject(sim_b)], coef(fpm));
+plotgrid!(pred_b, pred = (; label = "Pred (subject B)", color = :red), ipred = false)
+
+# many subjects with same dosage
+
+sims = [
+    simobs(
+        datamodel_pop,
+        Subject(; events = DosageRegimen(5.0), id = i),
+        p_true;
+        obstimes = range(0, stop = 10, length = 6),
+    ) for i = 1:12
+]
+training_population = Subject.(sims)
+
+population = synthetic_data(
+    data_model,
+    DosageRegimen(5.0),
+    true_parameters;
+    rng = StableRNG(0),
+    nsubj = 20,
+)
+
+fpm = fit(
+    ude_model_knowledge,
+    population,
+    init_params(ude_model_knowledge),
+    MAP(NaivePooled()),
+)
+
+pred = predict(fpm);
+
+begin
+    f = nothing
+    for (i, p) in enumerate(pred)
+        if i == 1
+            f = plotgrid([p]; ipred = false, title = "")
+        else
+            plotgrid!(
+                [p];
+                data = (; color = Cycled(i)),
+                ipred = false,
+                title = "",
+                add_legend = false,
+            )
+        end
+    end
+    f
+end
+
+# many subjects with same dose but sparse data as one subject with very populated data
+sims_sparse = [
+    simobs(
+        data_model,
+        Subject(; events = DosageRegimen(5.0), id = i),
+        true_parameters;
+        obstimes = 10 .* sort!(rand(2)),
+    ) for i = 1:25
+]
+population_sparse = Subject.(sims_sparse)
+
+fpm = fit(
+    ude_model_knowledge,
+    population_sparse,
+    init_params(ude_model_knowledge),
+    MAP(NaivePooled()),
+)
+
+pred = predict(fpm; obstimes = 0:0.01:10);
+plotgrid(pred)
+
+begin
+    f = nothing
+    for (i, p) in enumerate(pred)
+        if i == 1
+            f = plotgrid([p]; ipred = false, title = "")
+        else
+            plotgrid!(
+                [p];
+                data = (; color = Cycled(i)),
+                ipred = false,
+                title = "",
+                add_legend = false,
+            )
+        end
+    end
+    f
 end
