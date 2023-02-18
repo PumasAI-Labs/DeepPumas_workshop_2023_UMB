@@ -66,7 +66,7 @@ population = synthetic_data(
 # 1.2. Exercise: Reason about the predictions of the data-generating model
 
 pred_true = predict(model_deterministic, population, init_params(model_deterministic));
-plotgrid(pred_true[1:8]; pred=(; label="Pred (data-generating model)"), ipred=false)
+plotgrid(pred_true[1:8]; pred = (; label = "Pred (data-generating model)"), ipred = false)
 
 #
 # 2. PUMAS: MODEL THE POPULATION
@@ -101,16 +101,16 @@ model = @model begin
 end
 
 fpm = fit(
-  model,
-  population,
-  init_params(model),
-  MAP(FOCE())  # TODO: NaivePooled gives undetermined Ω but FOCE doesn't. Why?
+    model,
+    population,
+    init_params(model),
+    MAP(FOCE()),  # TODO: NaivePooled gives undetermined Ω but FOCE doesn't. Why?
 )
 
 # 2.2. Exercise: Reason about the predictions of the Pumas model
 
 pred = predict(model, population, init_params(model));
-plotgrid!(pred[1:8]; pred=(; label="Pred (model)", color=:red), ipred=false)
+plotgrid!(pred[1:8]; pred = (; label = "Pred (model)", color = :red), ipred = false)
 
 #
 # 3. DEEPPUMAS: AUGMENT THE MODEL WITH COVARIATES
@@ -125,13 +125,16 @@ plotgrid!(pred[1:8]; pred=(; label="Pred (model)", color=:red), ipred=false)
 #      prepares a mapping of covariates to those EBEs
 #   - The function `pair_plots` plots pairwise scatterplots
 
-cov2randeff =
-    preprocess(model, population, init_params(model), FOCE())
-pair_plots(cov2randeff.x, cov2randeff.y, xlabels=["age", "weight"], ylabels=["η₁", "η₂"])
+cov2randeff = preprocess(model, population, init_params(model), FOCE())
+pair_plots(
+    cov2randeff.x,
+    cov2randeff.y,
+    xlabels = ["age", "weight"],
+    ylabels = ["η₁", "η₂"],
+)
 
 mlp = MLP(2, 8, (2, identity))
-fmlp =
-    fit(mlp, cov2randeff; optim_options = (; optim_alg = SimpleChains.ADAM()))
+fmlp = fit(mlp, cov2randeff; optim_options = (; optim_alg = SimpleChains.ADAM()))
 η̂ = Array(mlp.model(cov2randeff.x, fmlp.ml.ml.param));
 pair_plots(
     cov2randeff.y,
@@ -157,20 +160,23 @@ model_augmented = augment(fpm, fmlp)
 pred_augmented = predict(model_augmented, population, init_params(model_augmented));
 # pred_augmented = predict(model_augmented, population, merge(init_params(model_augmented), init_params(model_deterministic)));
 
-plotgrid(pred_true[1:8]; pred=(; label="Pred (data-generating model)"), ipred=false)
-plotgrid!(pred[1:8]; pred=(; label="Pred (model)", color=:red), ipred=false)
-plotgrid!(pred_augmented[1:8]; pred=(; label="Pred (initial params augmented model)", color=:green), ipred=false)
+plotgrid(pred_true[1:8]; pred = (; label = "Pred (data-generating model)"), ipred = false)
+plotgrid!(pred[1:8]; pred = (; label = "Pred (model)", color = :red), ipred = false)
+plotgrid!(
+    pred_augmented[1:8];
+    pred = (; label = "Pred (initial params augmented model)", color = :green),
+    ipred = false,
+)
 
 # 3.4. Continue fitting the augmented model
 
 # TODO: DomainError with Inf. Ideas?
-fapm = fit(
-    model_augmented,
-    population,
-    init_params(model_augmented),
-    MAP(FOCE())
-)
+fapm = fit(model_augmented, population, init_params(model_augmented), MAP(FOCE()))
 
-plotgrid(pred_true[1:8]; pred=(; label="Pred (data-generating model)"), ipred=false)
-plotgrid!(pred[1:8]; pred=(; label="Pred (model)", color=:red), ipred=false)
-plotgrid!(pred_augmented[1:8]; pred=(; label="Pred (augmented model)", color=:green), ipred=false)
+plotgrid(pred_true[1:8]; pred = (; label = "Pred (data-generating model)"), ipred = false)
+plotgrid!(pred[1:8]; pred = (; label = "Pred (model)", color = :red), ipred = false)
+plotgrid!(
+    pred_augmented[1:8];
+    pred = (; label = "Pred (augmented model)", color = :green),
+    ipred = false,
+)
