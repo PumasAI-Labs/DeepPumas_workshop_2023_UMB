@@ -17,8 +17,8 @@ one compartment linear elimination model and IV administration.
 """
 data_model = @model begin
     @param begin
-        tvCL ∈ RealDomain(lower = 0)    # typical value of CLearance (L/hr)
-        tvVc ∈ RealDomain(lower = 0)    # typical value of central volume of distribution (L)
+        tvCL ∈ RealDomain(lower = 0)    # typical value of CLearance
+        tvVc ∈ RealDomain(lower = 0)    # typical value of central volume of distribution
         Ω ∈ PDiagDomain(2)              # covariance matrix of random effects (between subject variability)
         σ ∈ RealDomain(lower = 0)       # residual error
     end
@@ -26,130 +26,41 @@ data_model = @model begin
         η ~ MvNormal(Ω)                 # per subject random effects
     end
     @pre begin
-        CL = tvCL * exp(η[1])           # per subject CLearance (L/hr)
-        Vc = tvVc * exp(η[2])           # per subject volume of central compartment (L)
+        CL = tvCL * exp(η[1])           # per subject CLearance
+        Vc = tvVc * exp(η[2])           # per subject volume of central compartment
     end
     @dynamics begin
-        Central' = -(CL / Vc) * Central # ODE for concentration of drug in plasma (mg/L)
+        Central' = -(CL / Vc) * Central # ODE for concentration of drug in plasma
     end
     @derived begin
-        cp := @. 1000 * (Central / Vc)  # concentration plasma (x1000 to convert mg/L to μg/L)
+        cp := @. 1000 * (Central / Vc)  # x1000 to match dose (mg) and concentration (μg/L)
         dv ~ @. Normal(cp, σ)
     end
 end
 
 population = synthetic_data(data_model; rng = StableRNG(0))
 preds = predict(data_model, population[1:4], init_params(data_model));
-plotgrid(preds; xlabel = "Time [What is the unit?]", ylabel = "Concentration [μg/L]")
-
-""" Model with a universal differential equation. """
-ude_model = @model begin
-    @param begin
-        mlp ∈ MLP(3, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        tvCL ∈ RealDomain(lower = 0)
-        tvVc ∈ RealDomain(lower = 0)
-        Ω ∈ PDiagDomain(2)
-        σ ∈ RealDomain(lower = 0)
-    end
-    @random begin
-        η ~ MvNormal(Ω)
-    end
-    @pre begin
-        CL = tvCL * exp(η[1])
-        Vc = tvVc * exp(η[2])
-        mlp_ = only ∘ mlp  # technical
-    end
-    @dynamics begin
-        Central' = mlp_(CL, Vc, Central)
-    end
-    @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
-        dv ~ @. Normal(cp, σ)
-    end
-end
-
-
-# discuss how CL and Vc are actually interchangeable if using Central' = mlp_(CL, Vc, Central)[1]
-
-fpm = fit(
-    ude_model,
-    population,
-    init_params(ude_model),
-    MAP(FOCE());
-    diffeq_options = (; alg = Rodas5P()),
-    optim_options = (; iterations = 150),
-)
-
-pred = predict(ude_model, population[1:4], coef(fpm); obstimes = 0:0.1:10);
-plotgrid(pred[1:4])
-
-#  DISCUSS THIS Model
-# IDENTIFIABILITY ISSUES
-# EXAMINING THE MLP ON ITS OWN, FOR EXAMPLE PLOTTING
-fmlp = coef(fpm).mlp
-fmlp(1, 1, 1)
-map(fmlp, (1, 1, 0:0.1:10))
-# Central' = -(CL / Vc) * Central
-
-xrange = 0:0.01:1
-res = map(xrange) do x
-    fmlp(1.0, 1.0, x)[1]
-end
-lines(xrange, res)
-
--(coef(fpm).tvCL / coef(fpm).tvVc)
-
-# IT IS POSSIBLE TO resume training WITH PREVIOUS PARAMS
-fpm = fit(
-    ude_model,
-    population,
-    coef(fpm),
-    MAP(FOCE());
-    diffeq_options = (; alg = Rodas5P()),
-    optim_options = (; iterations = 75),
-)
-
-pred = predict(ude_model, population[1:4], coef(fpm); obstimes = 0:0.1:10);
-plotgrid(pred)
-plotgrid(pred; pred = false)
-
-
-# resample_params = true
-# nrepeats = 10
-# for _ in 1:nrepeats
-#   global fpm = fit(
-#     model_ts,
-#     sample(trainpop_TS, 30; replace=false),
-#     resample_params ? sample_params(model_ts) : coef(fpm),
-#     MAP(FOCE());
-#     optim_options = (; time_limit=2*60, iterations=20),
-#     diffeq_options = (; alg = Rodas5P()),
-#     checkidentification=false
-#   )
-#   display(plotgrid(predict(model_ts, testpop_TS[1:24], coef(fpm))))
-#   resample_params = false
-# end
-# plotgrid(predict(model_ts, testpop_TS[1:24], coef(fpm); obstimes))
+plotgrid(preds)
 
 # EXAMPLE WITH UDE HAVING ONLY CENTRAL AND NO RANDOM EFFECTS 
 # THIS MEANS THAT THERE ISN'T ANY PERSONALIZATION AND PREDICTIONS
 # ARE EXACTLY THE SAME FOR ALL PATIENTS
 ude_model_2 = @model begin
     @param begin
-        mlp ∈ MLP(1, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
+        mlp ∈ MLP(1, 4, 4, (1, identity); reg = L2(1.0))
         # tvCL ∈ RealDomain(lower = 0)
         tvVc ∈ RealDomain(lower = 0)
         # Ω ∈ PDiagDomain(2)
         σ ∈ RealDomain(lower = 0)
     end
     @pre begin
-        mlp_ = only ∘ mlp  # technical
+        mlp_ = only ∘ mlp
     end
     @dynamics begin
-        Central' = mlp_(Central)  # dCentral/dt = mlp_(Central)
+        Central' = mlp_(Central)
     end
     @derived begin
-        cp := @. 1000 * (Central / tvVc)# x1000 to match concentration (μg/L) to dose (mg)
+        cp := @. 1000 * (Central / tvVc)
         dv ~ @. Normal(cp, σ)
     end
 end
@@ -166,14 +77,13 @@ fpm2 = fit(
 pred = predict(ude_model_2, population[1:4], coef(fpm2); obstimes = 0:0.1:10);
 plotgrid(pred)
 
-
-fmlp2 = coef(fpm2).mlp
-
-xrange = 0:0.01:1
-res = map(xrange) do x
-    fmlp2(x)[1]
-end
-lines(xrange, res)
+fmlp2 = only ∘ coef(fpm2).mlp
+central_prime = [fmlp2(central) for central in 0:0.1:5]
+lines(
+    0:0.1:5,
+    central_prime;
+    axis = (xlabel = "Central", ylabel = "Central' = mlp(Central)"),
+)
 
 # EXAMPLE WITH UDE HAVING ONLY CENTRAL BUT ADDING RANDOM EFFECTS 
 
@@ -210,60 +120,8 @@ fpm3 = fit(
     optim_options = (; iterations = 150),
 )
 
-pred = predict(ude_model_3, population[1:12], coef(fpm3); obstimes = 0:0.1:10);
+pred = predict(ude_model_3, population[1:4], coef(fpm3); obstimes = 0:0.1:10);
 plotgrid(pred)
-
-# ALL HAVE SAME STARTING VALUE BUT POSSIBLY DIFFERENT CURVES
-ude_model_4 = @model begin
-    @param begin
-        mlp ∈ MLP(1, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        tvCL ∈ RealDomain(lower = 0)
-        tvVc ∈ RealDomain(lower = 0)
-        Ω ∈ PDiagDomain(2)
-        σ ∈ RealDomain(lower = 0)
-    end
-    @random begin
-        η ~ MvNormal(Ω)
-    end
-    @pre begin
-        CL = tvCL * exp(η[1])
-        Vc = tvVc * exp(η[2])
-        mlp_ = only ∘ mlp  # technical
-    end
-    @dynamics begin
-        Central' = mlp_(CL, Vc, Central)
-    end
-    @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
-        dv ~ @. Normal(cp, σ)
-    end
-end
-
-# RANDOM EFFECTS IN DYNAMICS to discharge MLP from patient specific characteritics
-ude_model_3 = @model begin
-    @param begin
-        mlp ∈ MLP(1, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
-        # tvCL ∈ RealDomain(lower = 0)
-        tvVc ∈ RealDomain(lower = 0)
-        Ω ∈ PDiagDomain(1)
-        σ ∈ RealDomain(lower = 0)
-    end
-    @random begin
-        η ~ MvNormal(Ω)
-        η_nn ~ MvNormal(Ω)
-    end
-    @pre begin
-        Vc = tvVc * exp(η[1])
-        mlp_ = only ∘ mlp  # technical
-    end
-    @dynamics begin
-        Central' = mlp_(Central, η_nn)
-    end
-    @derived begin
-        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
-        dv ~ @. Normal(cp, σ)
-    end
-end
 
 # ALL HAVE SAME STARTING VALUE BUT POSSIBLY DIFFERENT CURVES
 
@@ -332,3 +190,104 @@ ude_model_5 = @model begin
         dv ~ @. Normal(cp, σ)
     end
 end
+
+# ABOVE AND BELOW ARE THE SAME I THINK
+
+# RANDOM EFFECTS IN DYNAMICS to discharge MLP from patient specific characteritics
+ude_model_3 = @model begin
+    @param begin
+        mlp ∈ MLP(1, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
+        # tvCL ∈ RealDomain(lower = 0)
+        tvVc ∈ RealDomain(lower = 0)
+        Ω ∈ PDiagDomain(1)
+        σ ∈ RealDomain(lower = 0)
+    end
+    @random begin
+        η ~ MvNormal(Ω)
+        η_nn ~ MvNormal(Ω)
+    end
+    @pre begin
+        Vc = tvVc * exp(η[1])
+        mlp_ = only ∘ mlp  # technical
+    end
+    @dynamics begin
+        Central' = mlp_(Central, η_nn)
+    end
+    @derived begin
+        cp := @. 1000 * (Central / Vc)# x1000 to match concentration (μg/L) to dose (mg)
+        dv ~ @. Normal(cp, σ)
+    end
+end
+
+
+
+
+""" 
+Model with a universal differential equation and randon effects.
+"""
+# ALL HAVE SAME STARTING VALUE BUT POSSIBLY DIFFERENT CURVES
+# discuss how CL and Vc are actually interchangeable if using Central' = mlp_(CL, Vc, Central)[1]
+
+ude_model = @model begin
+    @param begin
+        mlp ∈ MLP(3, 4, 4, (1, identity); reg = L2(1.0))  # DEFAULT NON-LIN IN HIDDEN LAYERS IS TANH, TRY OUT HERE
+        tvCL ∈ RealDomain(lower = 0)
+        tvVc ∈ RealDomain(lower = 0)
+        Ω ∈ PDiagDomain(2)
+        σ ∈ RealDomain(lower = 0)
+    end
+    @random begin
+        η ~ MvNormal(Ω)
+    end
+    @pre begin
+        CL = tvCL * exp(η[1])
+        Vc = tvVc * exp(η[2])
+        mlp_ = only ∘ mlp
+    end
+    @dynamics begin
+        Central' = mlp_(CL, Vc, Central)
+    end
+    @derived begin
+        cp := @. 1000 * (Central / Vc)
+        dv ~ @. Normal(cp, σ)
+    end
+end
+
+fpm = fit(
+    ude_model,
+    population,
+    init_params(ude_model),
+    MAP(FOCE());
+    diffeq_options = (; alg = Rodas5P()),
+    optim_options = (; iterations = 150),
+)
+
+pred = predict(ude_model, population[1:4], coef(fpm));
+plotgrid(pred[1:4])
+
+#  DISCUSS THIS Model
+# IDENTIFIABILITY ISSUES
+# EXAMINING THE MLP ON ITS OWN, FOR EXAMPLE PLOTTING
+fmlp = only ∘ coef(fpm).mlp
+central_prime = [fmlp(1.0, 1.0, central) for central in 0:0.1:5]
+lines(
+    0:0.1:5,
+    central_prime;
+    axis = (xlabel = "Central", ylabel = "Central' = mlp(CL=1, Vc=1, Central)"),
+)
+
+# IT IS POSSIBLE TO resume training WITH PREVIOUS PARAMS
+fpm = fit(
+    ude_model,
+    population,
+    coef(fpm),
+    MAP(FOCE());
+    diffeq_options = (; alg = Rodas5P()),
+    optim_options = (; iterations = 75),
+)
+
+pred = predict(ude_model, population[1:4], coef(fpm); obstimes = 0:0.1:10);
+plotgrid(pred)
+plotgrid(pred; pred = false)
+
+
