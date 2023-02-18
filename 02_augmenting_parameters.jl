@@ -8,14 +8,17 @@ include("utils/utils.jl")
 # TABLE OF CONTENTS
 #
 # 1. SYNTHETIC DATA GENERATION
+#
 # 1.1. Sample synthetic data where individual parameters are deterministic
 # 1.2. Exercise: Reason about the predictions of the data-generating model
 #
 # 2. PUMAS: MODEL THE POPULATION
+#
 # 2.1. Define and fit a Pumas model
 # 2.2. Exercise: Reason about the predictions of the Pumas model
 #
 # 3. DEEPPUMAS: AUGMENT THE MODEL WITH COVARIATES
+#
 # 3.1. Model the relationship between covariates and random effects
 # 3.2. Augment the model with covariates and reason about its predictions
 # 3.3. Continue fitting the augmented model
@@ -23,6 +26,7 @@ include("utils/utils.jl")
 
 #
 # 1. SYNTHETIC DATA GENERATION
+#
 # 1.1. Sample synthetic data where individual parameters are deterministic
 # 1.2. Exercise: Reason about the predictions of the data-generating model
 #
@@ -70,6 +74,7 @@ plotgrid(pred_true[1:8]; pred = (; label = "Pred (data-generating model)"), ipre
 
 #
 # 2. PUMAS: MODEL THE POPULATION
+#
 # 2.1. Define and fit a Pumas model
 # 2.2. Exercise: Reason about the predictions of the Pumas model
 #
@@ -114,6 +119,7 @@ plotgrid!(pred[1:8]; pred = (; label = "Pred (model)", color = :red), ipred = fa
 
 #
 # 3. DEEPPUMAS: AUGMENT THE MODEL WITH COVARIATES
+#
 # 3.1. Model the relationship between covariates and random effects
 # 3.2. Augment the model with covariates and reason about its predictions
 # 3.3. Continue fitting the augmented model

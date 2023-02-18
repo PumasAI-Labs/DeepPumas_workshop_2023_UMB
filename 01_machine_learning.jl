@@ -9,6 +9,7 @@ using Random
 # TABLE OF CONTENTS
 # 
 # 1. A SIMPLE MACHINE LEARNING (ML) MODEL
+#
 # 1.1. Sample subjects with an obvious `true_function`
 # 1.2. Model `true_function` with a linear regression
 #
