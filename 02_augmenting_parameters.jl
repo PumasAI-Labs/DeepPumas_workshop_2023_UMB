@@ -1,21 +1,33 @@
 using DeepPumas
 using DeepPumas.SimpleChains
-# using PumasPlots
 using PumasPlots.CairoMakie
 using StableRNGs
-# using PumasUtilities
-# using CairoMakie
 include("utils/utils.jl")
 
+#
 # TABLE OF CONTENTS
-# 1. Sample population where individual parameters are fixed effects
-# 2. Sample population where individual parameters are random effects
-# 3. Study the relationship between covariates and random effects
-# 4. Predict individual parameters as a function of covariates 
-# 5. DeepPumas model augmentation
+#
+# 1. SYNTHETIC DATA GENERATION
+# 1.1. Sample synthetic data where individual parameters are deterministic
+# 1.2. Exercise: Reason about the predictions of the data-generating model
+#
+# 2. PUMAS: MODEL THE POPULATION
+# 2.1. Define and fit a Pumas model
+# 2.2. Exercise: Reason about the predictions of the Pumas model
+#
+# 3. DEEPPUMAS: AUGMENT THE MODEL WITH COVARIATES
+# 3.1. Model the relationship between covariates and random effects
+# 3.2. Augment the model with covariates and reason about its predictions
+# 3.3. Continue fitting the augmented model
+#
 
+#
+# 1. SYNTHETIC DATA GENERATION
+# 1.1. Sample synthetic data where individual parameters are deterministic
+# 1.2. Exercise: Reason about the predictions of the data-generating model
+#
 
-# 1. Sample population where individual parameters are fixed effects
+# 1.1. Sample synthetic data where individual parameters are deterministic
 
 """
 Helper Pumas model to generate synthetic data. The deviation of each 
@@ -26,12 +38,13 @@ model_deterministic = @model begin
     @param begin
         tvCL ∈ RealDomain(lower = 0)    # typical value of clearance
         tvVc ∈ RealDomain(lower = 0)    # typical value of central volume of distribution
+        Ω ∈ PDiagDomain(2)              # covariance matrix of random effects (between subject variability)        
         σ ∈ RealDomain(lower = 0)       # residual error
     end
     @covariates age weight
     @pre begin
-        CL = tvCL * saturating_function(age)    # per subject clearance
-        Vc = tvVc * saturating_function(weight) # per subject volume of central compartment
+        CL = tvCL * exp(saturating_function(age))    # per subject clearance
+        Vc = tvVc * exp(saturating_function(weight)) # per subject volume of central compartment
     end
     @dynamics begin
         Central' = -(CL / Vc) * Central # ODE for concentration of drug in plasma
@@ -42,7 +55,7 @@ model_deterministic = @model begin
     end
 end
 
-pop_deterministic = synthetic_data(
+population = synthetic_data(
     model_deterministic;
     covariates = (
         age = truncated(Normal(55, 10), 35, Inf),
@@ -51,14 +64,20 @@ pop_deterministic = synthetic_data(
     rng = StableRNG(0),
 )
 
-# 2. Sample population where individual parameters are random effects
+# 1.2. Exercise: Reason about the predictions of the data-generating model
 
-"""
-Helper Pumas model to generate synthetic data. The deviation of each 
-subject from `tvCL` and `tvVc` is random, and independent from the 
-covariates `age` and `weight`.
-"""
-model_random = @model begin
+pred_true = predict(model_deterministic, population, init_params(model_deterministic));
+plotgrid(pred_true[1:8]; pred=(; label="Pred (data-generating model)"), ipred=false)
+
+#
+# 2. PUMAS: MODEL THE POPULATION
+# 2.1. Define and fit a Pumas model
+# 2.2. Exercise: Reason about the predictions of the Pumas model
+#
+
+# 2.1. Define and fit a Pumas model
+
+model = @model begin
     @param begin
         tvCL ∈ RealDomain(lower = 0)    # typical value of clearance
         tvVc ∈ RealDomain(lower = 0)    # typical value of central volume of distribution
@@ -82,98 +101,77 @@ model_random = @model begin
     end
 end
 
-pop_random = synthetic_data(
-    model_random;
-    covariates = (
-        age = truncated(Normal(55, 10), 35, Inf),
-        weight = truncated(Normal(75, 10), 60, Inf),
-    ),
-    rng = StableRNG(0),
+fpm = fit(
+  model,
+  population,
+  init_params(model),
+  MAP(FOCE())  # NaivePooled gives undetermined Ω but FOCE doesn't. Why?
 )
 
-# 3. Study the relationship between covariates and random effects
+# 2.2. Exercise: Reason about the predictions of the Pumas model
+
+pred = predict(model, population, init_params(model));
+plotgrid!(pred[1:8]; pred=(; label="Pred (model)", color=:red), ipred=false)
+
+#
+# 3. DEEPPUMAS: AUGMENT THE MODEL WITH COVARIATES
+# 3.1. Model the relationship between covariates and random effects
+# 3.2. Augment the model with covariates and reason about its predictions
+# 3.3. Continue fitting the augmented model
+#
+
+# 3.1. Model the relationship between covariates and random effects
 # Hints: 
 #   - `DeepPumas.preprocess` computes EBEs of random effects and
 #      prepares a mapping of covariates to those EBEs
-#   - Use `DeepPumas.preprocess` on `model_random`, both for 
-#     `pop_deterministic` and for `pop_random`, because the data 
-#     generating process is unknown to us.
-#   - The function `pair_plots` plots pairwise scatterplots.
+#   - The function `pair_plots` plots pairwise scatterplots
 
-cov2randeff_deterministic =
-    preprocess(model_random, pop_deterministic, init_params(model_random), FOCE())
-pair_plots(cov2randeff_deterministic.x, cov2randeff_deterministic.y)
-
-cov2randeff_random = preprocess(model_random, pop_random, init_params(model_random), FOCE())
-pair_plots(cov2randeff_random.x, cov2randeff_random.y)
-
-# 4. Predict individual parameters as a function of covariates 
+cov2randeff =
+    preprocess(model, population, init_params(model), FOCE())
+pair_plots(cov2randeff.x, cov2randeff.y, xlabels=["age", "weight"], ylabels=["η₁", "η₂"])
 
 mlp = MLP(2, 8, (2, identity))
-fmlp_deterministic =
-    fit(mlp, cov2randeff_deterministic; optim_options = (; optim_alg = SimpleChains.ADAM()))
-ŷ = Array(mlp.model(cov2randeff_deterministic.x, fmlp.ml.ml.param))
+fmlp =
+    fit(mlp, cov2randeff; optim_options = (; optim_alg = SimpleChains.ADAM()))
+η̂ = Array(mlp.model(cov2randeff.x, fmlp.ml.ml.param));
 pair_plots(
-    cov2randeff_deterministic.y,
-    ŷ,
-    xlabels = ["y₁", "y₂"],
-    ylabels = ["ŷ₁", "ŷ₂"],
+    cov2randeff.y,
+    η̂,
+    xlabels = ["η₁", "η₂"],
+    ylabels = ["η̂₁(age, weight)", "η̂₂(age, weight)"],
 )
 pair_plots(
-    cov2randeff_deterministic.x,
-    ŷ,
+    cov2randeff.x,
+    η̂,
     xlabels = ["age", "weight"],
-    ylabels = ["ŷ₁", "ŷ₂"],
+    ylabels = ["η̂₁(age, weight)", "η̂₂(age, weight)"],
 )
 
-mlp = MLP(2, (64, relu), (64, relu), (2, identity))
-fmlp = fit(mlp, cov2randeff_random; optim_options = (; optim_alg = SimpleChains.ADAM()))
-ŷ = mlp.model(cov2randeff_random.x, fmlp.ml.ml.param)
-pair_plots(cov2randeff_random.y, ŷ, xlabels = ["y₁", "y₂"], ylabels = ["ŷ₁", "ŷ₂"])
-pair_plots(cov2randeff_random.x, ŷ, xlabels = ["age", "weight"], ylabels = ["ŷ₁", "ŷ₂"])
+# 3.2. Augment the model with covariates and reason about its predictions
+# Hints: 
+#   - `DeepPumas.augment` augments a fitted Pumas model with a fitted ML model
+#   - The `init_params` of an augmented model are the fitted coefficients of 
+#     the Pumas model and the fitted coefficients of the ML model
 
-# 5. DeepPumas model augmentation
+model_augmented = augment(fpm, fmlp)
 
-# fpm_deterministic = fit(
-#   model_deterministic,
-#   pop_deterministic,
-#   init_params(model_deterministic),
-#   MAP(NaivePooled())
-# )
+pred_augmented = predict(model_augmented, population, init_params(model_augmented));
+# pred_augmented = predict(model_augmented, population, merge(init_params(model_augmented), init_params(model_deterministic)));
 
-# pred = predict(model_deterministic, pop_deterministic, coef(fpm_deterministic));
-# plotgrid(pred[1:8])
+plotgrid(pred_true[1:8]; pred=(; label="Pred (data-generating model)"), ipred=false)
+plotgrid!(pred[1:8]; pred=(; label="Pred (model)", color=:red), ipred=false)
+plotgrid!(pred_augmented[1:8]; pred=(; label="Pred (initial params augmented model)", color=:green), ipred=false)
 
-# fpm_random = fit(
-#   model_random,
-#   pop_random,
-#   init_params(model_random),
-#   MAP(NaivePooled())
-# )
+# 3.4. Continue fitting the augmented model
 
-# pred = predict(model_random, pop_random, coef(fpm_random));
-# plotgrid(pred[1:8])
-
-
-fpm = fit(
-  model_random,
-  pop_deterministic,
-  init_params(model_random),
-  MAP(NaivePooled())
+# DomainError with Inf. Ideas?
+fapm = fit(
+    model_augmented,
+    population,
+    init_params(model_augmented),
+    MAP(FOCE())
 )
 
-pred = predict(model_random, pop_deterministic, coef(fpm));
-plotgrid(pred[1:8])
-
-augmented_model = augment(fpm, cov2randeff_deterministic)
-
-# The `init_params` of an augmented model is the combination of the best parameters of the
-# FittedPumasModel and the fitted machine learning model.
-p_covs = init_params(augmented_model)
-covariate_pred = predict(augmented_model, testpop, p_covs; obstimes)
-
-plotgrid(true_pred; pred = (; label="Best possible pred", color=(:black, 0.5)), ipred = false)
-plotgrid!(covariate_pred; pred = (; linestyle=:dash))
-
-# TODO
-# ADD HERE WORKFLOW AS IN DEMO30 or https://github.com/PumasAI/DeepPumas-Workshop/blob/main/code/02-model_identification.jl
+plotgrid(pred_true[1:8]; pred=(; label="Pred (data-generating model)"), ipred=false)
+plotgrid!(pred[1:8]; pred=(; label="Pred (model)", color=:red), ipred=false)
+plotgrid!(pred_augmented[1:8]; pred=(; label="Pred (augmented model)", color=:green), ipred=false)
