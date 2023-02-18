@@ -74,9 +74,9 @@ begin
         y;
         axis = (xlabel = "covariate x", ylabel = "observation y"),
         label = "data (each dot is a subject)",
-    );
-    lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true");
-    axislegend();
+    )
+    lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
+    axislegend()
     f
 end
 
@@ -93,12 +93,7 @@ model_ex1 = @model begin
     @derived y ~ @. Normal(ŷ, σ)
 end
 
-fpm = fit(
-    model_ex1,
-    population_ex1,
-    init_params(model_ex1),
-    MAP(NaivePooled())
-);
+fpm = fit(model_ex1, population_ex1, init_params(model_ex1), MAP(NaivePooled()));
 fpm  # `true_function` is y = x (that is, a = 1 b = 0) and σ = 0.25
 
 ŷ = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
@@ -109,7 +104,7 @@ begin
         y;
         axis = (xlabel = "covariate x", ylabel = "observation y"),
         label = "data (each dot is a subject)",
-    );
+    )
     scatter!(x, ŷ, label = "prediction")
     lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
     axislegend()
@@ -145,21 +140,16 @@ begin
         y;
         axis = (xlabel = "covariate x", ylabel = "observation y"),
         label = "data (each dot is a subject)",
-    );
-    lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true");
-    axislegend();
+    )
+    lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
+    axislegend()
     f
 end
 
 # 2.2. Exercise: Reason about using a linear regression to model the current `true_function`
 
 solution_ex22 = begin
-    fpm = fit(
-        model_ex1,
-        population_ex2,
-        init_params(model_ex1),
-        MAP(NaivePooled())
-    )
+    fpm = fit(model_ex1, population_ex2, init_params(model_ex1), MAP(NaivePooled()))
     ŷ_ex22 = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
 
     f = scatter(
@@ -203,7 +193,7 @@ begin
         y;
         axis = (xlabel = "covariate x", ylabel = "observation y"),
         label = "data (each dot is a subject)",
-    );
+    )
     scatter!(x, ŷ_ex23, label = "prediction")
     lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
     axislegend()
@@ -314,7 +304,7 @@ begin
         y;
         axis = (xlabel = "covariate x", ylabel = "observation y"),
         label = "data (each dot is a subject)",
-    );
+    )
     scatter!(x, ŷ, label = "prediction (32x32 units - 1k iter)")
     lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
     axislegend()
@@ -348,10 +338,10 @@ begin
         y_train;
         axis = (xlabel = "covariate x", ylabel = "observation y"),
         label = "training data",
-    );
-    scatter!(x_valid, y_valid; label = "validation data");
-    lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true");
-    axislegend();
+    )
+    scatter!(x_valid, y_valid; label = "validation data")
+    lines!(-1:0.1:1, true_function.(-1:0.1:1); color = :gray, label = "true")
+    axislegend()
     f
 end
 
@@ -364,7 +354,7 @@ begin
         init_params(model_ex3),
         MAP(NaivePooled());
         optim_options = (; iterations = 10),
-    );
+    )
 
     loss_train = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_train))
     loss_valid = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_valid))
@@ -422,7 +412,7 @@ begin
         init_params(model_ex4),
         MAP(NaivePooled());
         optim_options = (; iterations = 10),
-    );
+    )
 
     loss_train = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_train))
     loss_valid = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_valid))
