@@ -6,15 +6,25 @@ using StableRNGs
 # 
 # TABLE OF CONTENTS
 # 
-# 1. IDENTIFICATION OF MODEL DYNAMICS
-# 1.1. Sample data based on a known model
-# 1.2. Delegate the identification of dynamics to a neural network
-# 1.3. Exercise: Assess the quality of predictions on higher doses
-# 1.4. Combine existing domain knowledge and a neural network
-# 1.5. Exercise: Revisit exercise 1.3 with the combined model
+# 1. INTRODUCTION
+#
+# 1.1. Simulate subjects A and B with different dosage regimens
+# 1.2. A dummy neural network for modeling dynamics
+# 
+# 2. IDENTIFICATION OF MODEL DYNAMICS USING NEURAL NETWORKS
+#
+# 2.1. Delegate the identification of dynamics to a neural network
+# 2.2. Combine existing domain knowledge and a neural network
+# 2.3. Extend the analysis to a population of multiple subjects
+# 2.4. Analyse the effect of very sparse data on the predictions
 #
 
-# 1.1 Sample data based on a known model
+# 
+# 1. INTRODUCTION
+#
+# 1.1. Simulate subjects A and B with different dosage regimens
+# 1.2. A dummy neural network for modeling dynamics
+# 
 
 """
 Helper Pumas model to generate synthetic data. It assumes 
@@ -43,7 +53,8 @@ end
 
 true_parameters = (; tvImax = 1.1, tvIC50 = 0.8, tvKa = 1.0, σ = 0.1)
 
-# simulate subjects A and B with different dosage
+# 1.1. Simulate subjects A and B with different dosage regimens
+
 sim_a = simobs(
     data_model,
     Subject(; events = DosageRegimen(5.0)),
@@ -60,7 +71,7 @@ sim_b = simobs(
 )
 plotgrid!([Subject(sim_b)]; data = (; label = "Data (subject B)"), color = :gray)
 
-# 0. Time model
+# 1.2. A dummy neural network for modeling dynamics
 
 time_model = @model begin
     @param begin
@@ -79,7 +90,16 @@ pop_b = read_pumas(DataFrame(sim_b); observations = [:Outcome], event_data = fal
 pred_b = predict(time_model, pop_b, coef(fpm));
 plotgrid!(pred_b, pred = (; label = "Pred (subject B)", color = :red), ipred = false)
 
-# 1.2. Delegate the identification of dynamics to a neural network
+# 
+# 2. IDENTIFICATION OF MODEL DYNAMICS USING NEURAL NETWORKS
+#
+# 2.1. Delegate the identification of dynamics to a neural network
+# 2.2. Combine existing domain knowledge and a neural network
+# 2.3. Extend the analysis to a population of multiple subjects
+# 2.4. Analyse the effect of very sparse data on the predictions
+#
+
+# 2.1. Delegate the identification of dynamics to a neural network
 
 ude_model = @model begin
     @param begin
@@ -105,12 +125,12 @@ plotgrid!([Subject(sim_b)]; data = (; label = "Data (subject B)"), color = :gray
 
 fpm = fit(ude_model, [Subject(sim_a)], init_params(ude_model), MAP(NaivePooled()))
 pred_a = predict(fpm);
-plotgrid(pred_a; pred = (; label = "Pred (subject A)"), ipred = false)
+plotgrid!(pred_a; pred = (; label = "Pred (subject A)"), ipred = false)
 
 pred_b = predict(ude_model, [Subject(sim_b)], coef(fpm));
 plotgrid!(pred_b, pred = (; label = "Pred (subject B)", color = :red), ipred = false)
 
-# 1.4. Combine existing domain knowledge and a neural network
+# 2.2. Combine existing domain knowledge and a neural network
 
 ude_model_knowledge = @model begin
     @param begin
@@ -147,25 +167,17 @@ plotgrid!(pred_a; pred = (; label = "Pred (subject A)"), ipred = false)
 pred_b = predict(ude_model_knowledge, [Subject(sim_b)], coef(fpm));
 plotgrid!(pred_b, pred = (; label = "Pred (subject B)", color = :red), ipred = false)
 
-# many subjects with same dosage
+# 2.3. Extend the analysis to a population of multiple subjects
 
 sims = [
     simobs(
-        datamodel_pop,
+        data_model,
         Subject(; events = DosageRegimen(5.0), id = i),
         p_true;
         obstimes = range(0, stop = 10, length = 6),
     ) for i = 1:12
 ]
 training_population = Subject.(sims)
-
-population = synthetic_data(
-    data_model,
-    DosageRegimen(5.0),
-    true_parameters;
-    rng = StableRNG(0),
-    nsubj = 20,
-)
 
 fpm = fit(
     ude_model_knowledge,
@@ -194,7 +206,8 @@ begin
     f
 end
 
-# many subjects with same dose but sparse data as one subject with very populated data
+# 2.4. Analyse the effect of very sparse data on the predictions
+
 sims_sparse = [
     simobs(
         data_model,
