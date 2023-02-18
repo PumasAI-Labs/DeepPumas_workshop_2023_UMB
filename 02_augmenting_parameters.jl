@@ -38,7 +38,6 @@ model_deterministic = @model begin
     @param begin
         tvCL ∈ RealDomain(lower = 0)    # typical value of clearance
         tvVc ∈ RealDomain(lower = 0)    # typical value of central volume of distribution
-        Ω ∈ PDiagDomain(2)              # covariance matrix of random effects (between subject variability)        
         σ ∈ RealDomain(lower = 0)       # residual error
     end
     @covariates age weight
@@ -105,7 +104,7 @@ fpm = fit(
   model,
   population,
   init_params(model),
-  MAP(FOCE())  # NaivePooled gives undetermined Ω but FOCE doesn't. Why?
+  MAP(FOCE())  # TODO: NaivePooled gives undetermined Ω but FOCE doesn't. Why?
 )
 
 # 2.2. Exercise: Reason about the predictions of the Pumas model
