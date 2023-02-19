@@ -1,8 +1,6 @@
 using DeepPumas
-using PumasPlots
-using PumasPlots.CairoMakie
+using CairoMakie
 
-#
 datamodel_pop = @model begin
   @param begin
     tvImax ∈ RealDomain(; lower=0.)
@@ -14,7 +12,7 @@ datamodel_pop = @model begin
   @pre begin
     Ka = tvKa * exp(η[1])
     Imax = tvImax* exp(η[2])
-    IC50 = tvIC50 * exp(η[2])
+    IC50 = tvIC50 * exp(η[3])
   end
   @dynamics begin
     Depot' = - Ka * Depot
@@ -30,64 +28,108 @@ p_true = (; tvImax = 1.1, tvIC50=0.8, tvKa=1., σ = 0.02)
 sims = [simobs(datamodel_pop, Subject(; events=DosageRegimen(5.), id=i), p_true; obstimes=0:0.3:10) for i in 1:100]
 pop = Subject.(sims)
 trainpop =  pop[1:80]
-testpop = pop[length(trainpop) + 1:end]
+testpop = pop[end-5:end]
 trainpop_no_dose = read_pumas(DataFrame(trainpop); observations=[:PK], event_data=false)
 testpop_no_dose = read_pumas(DataFrame(testpop); observations=[:PK], event_data=false)
 
 plotgrid(trainpop[1:12])
 
+############################################################################################
+# A benchmark from our previous excercises - a traditional machine learning model.
+############################################################################################
 
-# A benchmark from our previous excercises - a somewhat traditional 
-ml_model = @model begin
+model_ml = @model begin
   @param begin
     NN ∈ MLP(1, 6, 6, (1, identity); reg=L2(1.0)) 
     σ ∈ RealDomain(; lower=0.)
   end
   @pre X = NN(t)[1]
-  @derived Outcome ~ @. Normal(X, σ)
+  @derived PK ~ @. Normal(X, σ)
 end
 
-fpm_ml = fit(ml_model, trainpop_no_dose, sample_params(ml_model), MAP(NaivePooled()))
-pred_ml = predict(ml_model, testpop_no_dose, coef(fpm_ml); obstimes=0:0.1:10)
+fpm_ml = fit(model_ml, trainpop_no_dose, sample_params(model_ml), MAP(NaivePooled()))
+pred_ml = predict(model_ml, testpop_no_dose, coef(fpm_ml); obstimes=0:0.1:10)
 plotgrid(pred_ml)
+
 # One curve for all. Here, the use of multiple patients is providing a wealth of data for
 # the training and we don't overfit as much as in previous examples.
-
 # Now, let's do DeepNLME where we have a random effect as input to the NN.
-ml_nlme_model = @model begin
+     
+############################################################################################
+# Model 1 - additive η
+############################################################################################
+model1 = @model begin
+  @param begin
+    NN ∈ MLP(1, 6, 6, (1, identity); reg=L2(1.0))
+    σ ∈ RealDomain(; lower=0.)
+  end
+  @random η ~ Normal(0., 1.)
+  @pre X = NN(t)[1] + η
+  @derived PK ~ @. Normal(X, σ)
+end
+
+fpm1 = fit(model1, trainpop_no_dose, sample_params(model1), MAP(FOCE()))
+pred1 = predict(model1, testpop_no_dose, coef(fpm1); obstimes=0:0.1:10)
+
+## What can this random effect do?
+plotgrid(pred1)
+
+loglikelihood(fpm1)
+loglikelihood(model1, testpop_no_dose, coef(fpm1), FOCE())
+
+############################################################################################
+# Model 2 - exp(η)
+############################################################################################
+model2 = @model begin
+  @param begin
+    NN ∈ MLP(1, 6, 6, (1, identity); reg=L2(1.0))
+    σ ∈ RealDomain(; lower=0.)
+  end
+  @random η ~ Normal(0., 1.)
+  @pre X = NN(t)[1] * exp(η)
+  @derived PK ~ @. Normal(X, σ)
+end
+
+fpm2 = fit(model2, trainpop_no_dose, sample_params(model2), MAP(FOCE()))
+pred2 = predict(model2, testpop_no_dose, coef(fpm2); obstimes=0:0.1:10)
+
+## What can the random effect do?
+plotgrid(pred2)
+
+
+############################################################################################
+# Model 3 - random effect as input to the NN
+############################################################################################
+model3 = @model begin
   @param begin
     NN ∈ MLP(2, 6, 6, (1, identity); reg=L2(1.0))
     σ ∈ RealDomain(; lower=0.)
   end
-  @random η ~ Normal(0., 1.)
+  @random η ~ Normal(0., ω)
   @pre X = NN(t, η)[1]
-  @derived Outcome ~ @. Normal(X, σ)
+  @derived PK ~ @. Normal(X, σ)
 end
 
-fpm_ml_nlme = fit(ml_nlme_model, trainpop_no_dose, sample_params(ml_nlme_model), MAP(FOCE()))
-pred_ml_nlme = predict(ml_nlme_model, testpop_no_dose, coef(fpm_ml_nlme); obstimes=0:0.1:10)
-plotgrid(pred_ml_nlme)
+fpm3 = fit(model3, trainpop_no_dose, sample_params(model3), MAP(FOCE()))
+pred3 = predict(model3, testpop_no_dose, coef(fpm3); obstimes=0:0.1:10)
 
-# Here, we have discovered a function for the pk-curve over time which takes one parameter
-# and this parameter can account for much but not all of the variability between patients.
+## What can the random effect do?
+plotgrid(pred3)
 
 
-#=
-However, the patients have variability across more than one dimension, so one η is not enough!
-
-So, let's add another random effect - making η a vector of two.
-=# 
-
-ml_nlme_model_2 = @model begin
+############################################################################################
+# Model 4 - two random effects as input to the NN
+############################################################################################
+model4 = @model begin
   @param begin
     NN ∈ MLP(3, 6, 6, (1, identity); reg=L2(1.0))
     σ ∈ RealDomain(; lower=0.)
   end
   @random η ~ MvNormal(Diagonal([1., 1.]))
   @pre X = NN(t, η)[1]
-  @derived Outcome ~ @. Normal(X, σ)
+  @derived PK ~ @. Normal(X, σ)
 end
 
-fpm_ml_nlme_2 = fit(ml_nlme_model_2, trainpop_no_dose, sample_params(ml_nlme_model_2), MAP(FOCE()); optim_options=(; time_limit=60))
-pred_ml_nlme_2 = predict(ml_nlme_model_2, testpop_no_dose, coef(fpm_ml_nlme_2); obstimes=0:0.1:10)
-plotgrid(pred_ml_nlme_2)
+fpm4 = fit(model4, trainpop_no_dose, sample_params(model4), MAP(FOCE()); optim_options=(; time_limit=120))
+pred4 = predict(model4, testpop_no_dose, coef(fpm4); obstimes=0:0.1:10)
+plotgrid(pred4)
