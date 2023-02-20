@@ -94,7 +94,7 @@ model_ex1 = @model begin
     @derived y ~ @. Normal(ŷ, σ)
 end
 
-fpm = fit(model_ex1, population_ex1, init_params(model_ex1), MAP(NaivePooled()));
+fpm = fit(model_ex1, population_ex1, init_params(model_ex1), NaivePooled());
 fpm  # `true_function` is y = x (that is, a = 1 b = 0) and σ = 0.25
 
 ŷ = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
@@ -181,7 +181,7 @@ fpm = fit(
     model_ex2,
     population_ex2,
     init_params(model_ex2),
-    MAP(NaivePooled());
+    NaivePooled();
     optim_options = (; iterations = 100),
 );
 fpm  # try to make sense of the parameters in the NN
@@ -219,7 +219,7 @@ solution_ex31 = begin
         model_ex2,
         population_ex2,
         init_params(model_ex2),
-        MAP(NaivePooled());
+        NaivePooled();
         optim_options = (; iterations = 10),
     )
     ŷ_underfit =
@@ -229,7 +229,7 @@ solution_ex31 = begin
         model_ex2,
         population_ex2,
         init_params(model_ex2),
-        MAP(NaivePooled());
+        NaivePooled();
         optim_options = (; iterations = 5_000),
     )
     ŷ_overfit =
@@ -259,7 +259,7 @@ solution_ex32 = begin
         model_ex1,
         population_ex2,
         init_params(model_ex1),
-        MAP(NaivePooled());
+        NaivePooled();
         optim_options = (; iterations = max_iterations),
     )
     ŷ = [only(subject_prediction.pred.y) for subject_prediction in predict(fpm)]
@@ -293,7 +293,7 @@ fpm = fit(
     model_ex3,
     population_ex2,
     init_params(model_ex3),
-    MAP(NaivePooled());
+    NaivePooled();
     optim_options = (; iterations = 1000),
 );
 
@@ -353,7 +353,7 @@ begin
         model_ex3,
         population_ex2,
         init_params(model_ex3),
-        MAP(NaivePooled());
+        NaivePooled();
         optim_options = (; iterations = 10),
     )
 
