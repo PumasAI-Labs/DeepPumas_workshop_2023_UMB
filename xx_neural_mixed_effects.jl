@@ -1,5 +1,6 @@
 using DeepPumas
 using CairoMakie
+using PumasPlots
 
 datamodel_pop = @model begin
   @param begin
@@ -48,7 +49,7 @@ model_ml = @model begin
 end
 
 fpm_ml = fit(model_ml, trainpop_no_dose, sample_params(model_ml), MAP(NaivePooled()))
-pred_ml = predict(model_ml, testpop_no_dose, coef(fpm_ml); obstimes=0:0.1:10)
+pred_ml = predict(model_ml, testpop_no_dose, coef(fpm_ml); obstimes=0:0.1:10);
 plotgrid(pred_ml)
 
 # One curve for all. Here, the use of multiple patients is providing a wealth of data for
@@ -73,9 +74,6 @@ pred1 = predict(model1, testpop_no_dose, coef(fpm1); obstimes=0:0.1:10)
 
 ## What can this random effect do?
 plotgrid(pred1)
-
-loglikelihood(fpm1)
-loglikelihood(model1, testpop_no_dose, coef(fpm1), FOCE())
 
 ############################################################################################
 # Model 2 - exp(η)
@@ -105,7 +103,7 @@ model3 = @model begin
     NN ∈ MLP(2, 6, 6, (1, identity); reg=L2(1.0))
     σ ∈ RealDomain(; lower=0.)
   end
-  @random η ~ Normal(0., ω)
+  @random η ~ Normal(0., 1.0)
   @pre X = NN(t, η)[1]
   @derived PK ~ @. Normal(X, σ)
 end
@@ -131,5 +129,8 @@ model4 = @model begin
 end
 
 fpm4 = fit(model4, trainpop_no_dose, sample_params(model4), MAP(FOCE()); optim_options=(; time_limit=120))
-pred4 = predict(model4, testpop_no_dose, coef(fpm4); obstimes=0:0.1:10)
+pred4 = predict(model4, testpop_no_dose, coef(fpm4); obstimes=0:0.1:10);
 plotgrid(pred4)
+
+ins = inspect(fpm4)
+goodness_of_fit(ins)
