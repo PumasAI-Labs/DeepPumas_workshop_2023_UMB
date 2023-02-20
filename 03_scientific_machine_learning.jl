@@ -75,7 +75,7 @@ plotgrid!([Subject(sim_b)]; data = (; label = "Data (subject B)"), color = :gray
 
 time_model = @model begin
     @param begin
-        mlp ∈ MLP(1, 6, 6, (1, identity))
+        mlp ∈ MLP(1, 6, 6, (1, identity); reg=L2(0.5))
         σ ∈ RealDomain(; lower = 0.0)
     end
     @derived Outcome ~ @. Normal(only(mlp(t)), σ)
@@ -83,11 +83,11 @@ end
 
 pop_a = read_pumas(DataFrame(sim_a); observations = [:Outcome], event_data = false)
 fpm = fit(time_model, pop_a, init_params(time_model), MAP(NaivePooled()))
-pred_a = predict(fpm);
+pred_a = predict(fpm; obstimes=0:0.1:10);
 plotgrid!(pred_a; pred = (; label = "Pred (subject A)"), ipred = false)
 
 pop_b = read_pumas(DataFrame(sim_b); observations = [:Outcome], event_data = false)
-pred_b = predict(time_model, pop_b, coef(fpm));
+pred_b = predict(time_model, pop_b, coef(fpm); obstimes=0:0.1:10);
 plotgrid!(pred_b, pred = (; label = "Pred (subject B)", color = :red), ipred = false)
 
 # 
@@ -124,10 +124,10 @@ plotgrid([Subject(sim_a)]; data = (; label = "Data (subject A)"))
 plotgrid!([Subject(sim_b)]; data = (; label = "Data (subject B)"), color = :gray)
 
 fpm = fit(ude_model, [Subject(sim_a)], init_params(ude_model), MAP(NaivePooled()))
-pred_a = predict(fpm);
+pred_a = predict(fpm; obstimes=0:0.1:10);
 plotgrid!(pred_a; pred = (; label = "Pred (subject A)"), ipred = false)
 
-pred_b = predict(ude_model, [Subject(sim_b)], coef(fpm));
+pred_b = predict(ude_model, [Subject(sim_b)], coef(fpm); obstimes=0:0.1:10);
 plotgrid!(pred_b, pred = (; label = "Pred (subject B)", color = :red), ipred = false)
 
 # 2.2. Combine existing domain knowledge and a neural network
@@ -161,10 +161,10 @@ fpm = fit(
 plotgrid([Subject(sim_a)]; data = (; label = "Data (subject A)"))
 plotgrid!([Subject(sim_b)]; data = (; label = "Data (subject B)"), color = :gray)
 
-pred_a = predict(fpm);
+pred_a = predict(fpm; obstimes=0:0.1:10);
 plotgrid!(pred_a; pred = (; label = "Pred (subject A)"), ipred = false)
 
-pred_b = predict(ude_model_knowledge, [Subject(sim_b)], coef(fpm));
+pred_b = predict(ude_model_knowledge, [Subject(sim_b)], coef(fpm); obstimes=0:0.1:10);
 plotgrid!(pred_b, pred = (; label = "Pred (subject B)", color = :red), ipred = false)
 
 # 2.3. Extend the analysis to a population of multiple subjects
@@ -186,7 +186,7 @@ fpm = fit(
     MAP(NaivePooled()),
 )
 
-pred = predict(fpm);
+pred = predict(fpm; obstimes=0:0.1:10);
 plotgrid(pred)
 
 begin
