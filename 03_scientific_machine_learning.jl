@@ -167,17 +167,33 @@ plotgrid!(pred_a; pred = (; label = "Pred (subject A)"), ipred = false)
 pred_b = predict(ude_model_knowledge, [Subject(sim_b)], coef(fpm); obstimes=0:0.1:10);
 plotgrid!(pred_b, pred = (; label = "Pred (subject B)", color = :red), ipred = false)
 
-# 2.3. Extend the analysis to a population of multiple subjects
+# 2.3. Extend the analysis to a population of multiple, heterogeneous, subjects
+#
 
-sims = [
-    simobs(
-        data_model,
-        Subject(; events = DosageRegimen(5.0), id = i),
-        true_parameters;
-        obstimes = 0:1:10,
-    ) for i = 1:25
-]
-population = Subject.(sims)
+data_model_heterogeneous = @model begin
+    @param begin
+        tvImax ∈ RealDomain(; lower = 0.0)  # typical value of maximum inhibition
+        tvIC50 ∈ RealDomain(; lower = 0.0)  # typical value of concentration for half-way inhibition
+        tvKa ∈ RealDomain(; lower = 0.0)    # typical value of absorption rate constant
+        σ ∈ RealDomain(; lower = 0.0)       # residual error
+    end
+    @random η ~ MvNormal(Diagonal([0.1, 0.1, 0.1]))
+    @pre begin
+        Imax = tvImax * exp(η[1])
+        IC50 = tvIC50 * exp(η[2])
+        Ka = tvKa * exp(η[2]) 
+    end
+    @dynamics begin
+        Depot' = -Ka * Depot
+        Central' = Ka * Depot - Imax * Central / (IC50 + Central)
+    end
+    @derived begin
+        Outcome ~ @. Normal(Central, σ)
+    end
+end
+
+population = synthetic_data(data_model_heterogeneous, DosageRegimen(5.0), true_parameters; obstimes=0:1:10, nsubj=25, rng=StableRNG(1))
+plotgrid(population)
 
 fpm = fit(
     ude_model_knowledge,
@@ -211,7 +227,7 @@ end
 
 sims_sparse = [
     simobs(
-        data_model,
+        data_model_heterogeneous,
         Subject(; events = DosageRegimen(5.0), id = i),
         true_parameters;
         obstimes = 11 .* sort!(rand(2)),
