@@ -110,12 +110,12 @@ fpm = fit(
     model,
     population,
     init_params(model),
-    MAP(FOCE()),  # TODO: NaivePooled gives undetermined Ω but FOCE doesn't. Why?
+    FOCE(), 
 )
 
 # 2.2. Exercise: Reason about the predictions of the Pumas model
 
-pred = predict(model, population, init_params(model));
+pred = predict(fpm);
 plotgrid!(pred[1:8]; pred = (; label = "Pred (model)", color = :red), ipred = false)
 
 #
@@ -132,7 +132,7 @@ plotgrid!(pred[1:8]; pred = (; label = "Pred (model)", color = :red), ipred = fa
 #      prepares a mapping of covariates to those EBEs
 #   - The function `pair_plots` plots pairwise scatterplots
 
-cov2randeff = preprocess(model, population, init_params(model), FOCE())
+cov2randeff = preprocess(fpm)
 pair_plots(
     cov2randeff.x,
     cov2randeff.y,
@@ -141,8 +141,8 @@ pair_plots(
 )
 
 mlp = MLP(2, 8, (2, identity))
-fmlp = fit(mlp, cov2randeff; optim_options = (; optim_alg = SimpleChains.ADAM()))
-η̂ = Array(mlp.model(cov2randeff.x, fmlp.ml.ml.param));
+fmlp = fit(mlp, cov2randeff)
+η̂ = fmlp.ml.ml(cov2randeff.x)
 pair_plots(
     cov2randeff.y,
     η̂,
@@ -178,12 +178,12 @@ plotgrid!(
 # 3.4. Continue fitting the augmented model
 
 # TODO: DomainError with Inf. Ideas?
-fapm = fit(model_augmented, population, init_params(model_augmented), MAP(FOCE()))
+fapm = fit(model_augmented, population, init_params(model_augmented), FOCE())
 
 plotgrid(pred_true[1:8]; pred = (; label = "Pred (data-generating model)"), ipred = false)
 plotgrid!(pred[1:8]; pred = (; label = "Pred (model)", color = :red), ipred = false)
 plotgrid!(
-    pred_augmented[1:8];
+    predict(fapm)[1:8];
     pred = (; label = "Pred (augmented model)", color = :green),
     ipred = false,
 )
