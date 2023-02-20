@@ -351,32 +351,26 @@ begin
 
     fpm = fit(
         model_ex3,
-        population_ex2,
+        population_train,
         init_params(model_ex3),
         NaivePooled();
         optim_options = (; iterations = 10),
     )
-
-    loss_train = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_train))
-    loss_valid = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_valid))
-
-    push!(loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
-    push!(loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
+    push!(loss_train_l, cost(model_ex3, population_train, coef(fpm), nothing, mse))
+    push!(loss_valid_l, cost(model_ex3, population_valid, coef(fpm), nothing, mse))
 
     iteration_blocks = 100
     for _ = 2:iteration_blocks
-
         fpm = fit(
             model_ex3,
-            population_ex2,
+            population_train,
             coef(fpm),
             MAP(NaivePooled());
             optim_options = (; iterations = 10),
         )
 
-        push!(loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
-        push!(loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
-
+        push!(loss_train_l, cost(model_ex3, population_train, coef(fpm), nothing, mse))
+        push!(loss_valid_l, cost(model_ex3, population_valid, coef(fpm), nothing, mse))
     end
 end
 
@@ -385,7 +379,7 @@ begin
         1:iteration_blocks,
         Float32.(loss_train_l);
         label = "training",
-        axis = (; xlabel = "Blocks of 10 iterations", ylabel = "Squared loss"),
+        axis = (; xlabel = "Blocks of 10 iterations", ylabel = "Mean squared loss"),
     )
     scatterlines!(1:iteration_blocks, Float32.(loss_valid_l); label = "validation")
     axislegend()
@@ -409,32 +403,27 @@ begin
 
     fpm = fit(
         model_ex4,
-        population_ex2,
+        population_train,
         init_params(model_ex4),
         MAP(NaivePooled());
         optim_options = (; iterations = 10),
     )
 
-    loss_train = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_train))
-    loss_valid = SimpleChains.add_loss(coef(fpm).nn.model, SquaredLoss(y_valid))
-
-    push!(reg_loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
-    push!(reg_loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
+    push!(reg_loss_train_l, cost(model_ex4, population_train, coef(fpm), nothing, mse))
+    push!(reg_loss_valid_l, cost(model_ex4, population_valid, coef(fpm), nothing, mse))
 
     iteration_blocks = 100
     for _ = 2:iteration_blocks
-
         fpm = fit(
             model_ex4,
-            population_ex2,
+            population_train,
             coef(fpm),
             MAP(NaivePooled());
             optim_options = (; iterations = 10),
         )
 
-        push!(reg_loss_train_l, loss_train(reshape(x_train, 1, :), coef(fpm).nn.param))
-        push!(reg_loss_valid_l, loss_valid(reshape(x_valid, 1, :), coef(fpm).nn.param))
-
+        push!(reg_loss_train_l, cost(model_ex4, population_train, coef(fpm), nothing, mse))
+        push!(reg_loss_valid_l, cost(model_ex4, population_valid, coef(fpm), nothing, mse))
     end
 end
 
@@ -443,7 +432,7 @@ begin
         1:iteration_blocks,
         Float32.(loss_train_l);
         label = "training",
-        axis = (; xlabel = "Blocks of 10 iterations", ylabel = "Squared loss"),
+        axis = (; xlabel = "Blocks of 10 iterations", ylabel = "Mean squared loss"),
     )
     scatterlines!(1:iteration_blocks, Float32.(loss_valid_l); label = "validation")
     scatterlines!(1:iteration_blocks, Float32.(reg_loss_train_l); label = "training (L2)")
